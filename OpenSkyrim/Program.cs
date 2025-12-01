@@ -1,4 +1,5 @@
 ﻿using OpenSkyrim.Serialization;
+using OpenSkyrim.Utility;
 using System;
 using System.IO;
 
@@ -12,7 +13,7 @@ class Program
 
 	static void ShowUsage()
 	{
-		Console.WriteLine($"OpenSkyrim {Utility.Version}");
+		Console.WriteLine($"OpenSkyrim {Rest.Version}");
 		Console.WriteLine("Usage: OpenSkyrim <skyrimFolder>");
 	}
 
@@ -37,7 +38,7 @@ class Program
 
 		OS.LogInfo($"Author: {info.Author}");
 		OS.LogInfo($"Description: {info.Description}");
-		OS.LogInfo($"Version: {info.HeaderData.version.f.FormatFloat()}");
+		OS.LogInfo($"Version: {info.ESMHeaderData.version.f.FormatFloat()}");
 
 
 		return ERROR_SUCCESS;

@@ -1,4 +1,5 @@
 ﻿using OpenSkyrim.Data;
+using OpenSkyrim.Utility;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -22,7 +23,7 @@ public static class ESMLoader
 		private bool GetSubrecordHeader(out SubRecordHeader subHeader)
 		{
 			var subrecordSize = Marshal.SizeOf<SubRecordHeader>();
-			if (Result.Header.record.dataSize - RecordRead < subrecordSize)
+			if (Result.ESMHeader.record.dataSize - RecordRead < subrecordSize)
 			{
 				subHeader = new SubRecordHeader();
 				return false;
@@ -38,7 +39,7 @@ public static class ESMLoader
 			
 		}
 
-		public ESMInfo Load()
+		private void LoadHeader()
 		{
 			// Signature - first 4 bytes
 			var s = Encoding.UTF8.GetString(Reader.ReadBytes(4));
@@ -59,30 +60,30 @@ public static class ESMLoader
 			// restart from the beginning (i.e. "TES4" record header)
 			Reader.BaseStream.Seek(0, SeekOrigin.Begin);
 
-			Reader.ReadStruct(out Result.Header);
+			Reader.ReadStruct(out Result.ESMHeader);
 
 			SubRecordHeader subHeader;
 			while (GetSubrecordHeader(out subHeader))
 			{
 				var typeId = subHeader.typeId;
-				if (typeId == Utility.FOURCC("HEDR"))
+				if (typeId == StreamUtils.FOURCC("HEDR"))
 				{
-					Reader.EnsureReadStruct(out Result.HeaderData);
+					Reader.EnsureReadStruct(out Result.ESMHeaderData);
 				}
-				else if (typeId == Utility.FOURCC("CNAM"))
+				else if (typeId == StreamUtils.FOURCC("CNAM"))
 				{
 					Result.Author = Reader.ReadZString(subHeader.dataSize);
 				}
-				else if (typeId == Utility.FOURCC("SNAM"))
+				else if (typeId == StreamUtils.FOURCC("SNAM"))
 				{
 					Result.Description = Reader.ReadZString(subHeader.dataSize);
 				}
-				else if (typeId == Utility.FOURCC("INTV") ||
-					typeId == Utility.FOURCC("INCC") ||
-					typeId == Utility.FOURCC("OFST") || // Oblivion only?
-					typeId == Utility.FOURCC("DELE") || // Oblivion only?
-					typeId == Utility.FOURCC("TNAM") || // Fallout 4 (CK only)
-					typeId == Utility.FOURCC("MMSB")) // Fallout 76
+				else if (typeId == StreamUtils.FOURCC("INTV") ||
+					typeId == StreamUtils.FOURCC("INCC") ||
+					typeId == StreamUtils.FOURCC("OFST") || // Oblivion only?
+					typeId == StreamUtils.FOURCC("DELE") || // Oblivion only?
+					typeId == StreamUtils.FOURCC("TNAM") || // Fallout 4 (CK only)
+					typeId == StreamUtils.FOURCC("MMSB")) // Fallout 76
 				{
 					// Skip
 					Reader.BaseStream.Seek(subHeader.dataSize, SeekOrigin.Current);
@@ -90,6 +91,28 @@ public static class ESMLoader
 				else
 				{
 					throw new Exception($"Unknown subheader {typeId}");
+				}
+			}
+		}
+
+		public ESMInfo Load()
+		{
+			LoadHeader();
+
+			while(!Reader.EndOfStream())
+			{
+				RecordHeader header;
+				if (!Reader.ReadStruct(out header))
+				{
+					break;
+				}
+
+				if (header.record.typeId == StreamUtils.FOURCC("GRUP"))
+				{
+					// Group record
+				} else
+				{
+					// Ordinary
 				}
 			}
 
