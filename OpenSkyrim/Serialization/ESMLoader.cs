@@ -1,6 +1,7 @@
 ﻿using OpenSkyrim.Data;
 using OpenSkyrim.Utility;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -14,6 +15,7 @@ public static class ESMLoader
 		private BinaryReader Reader { get; }
 		private int RecordRead { get; set; }
 		private ESMInfo Result { get; } = new ESMInfo();
+		private Stack<GroupRecord> GroupsStack { get; } = new Stack<GroupRecord>();
 
 		public ESMLoadContext(BinaryReader reader)
 		{
@@ -95,24 +97,72 @@ public static class ESMLoader
 			}
 		}
 
+		private void EnterGroup(GroupRecord record)
+		{
+			GroupsStack.Push(record);
+		}
+
+		private void LoadGroup(GroupRecord record)
+		{
+			switch (record.GroupType)
+			{
+				case GroupType.Grp_RecordType:
+				case GroupType.Grp_InteriorCell:
+				case GroupType.Grp_InteriorSubCell:
+				case GroupType.Grp_ExteriorCell:
+				case GroupType.Grp_ExteriorSubCell:
+					EnterGroup(record);
+					LoadItem();
+					break;
+				case GroupType.Grp_WorldChild:
+				case GroupType.Grp_CellChild:
+				case GroupType.Grp_TopicChild:
+				case GroupType.Grp_CellPersistentChild:
+				case GroupType.Grp_CellTemporaryChild:
+				case GroupType.Grp_CellVisibleDistChild:
+					break;
+			}
+		}
+
+		private BaseRecord LoadItem()
+		{
+			RecordHeader header;
+			if (!Reader.ReadStruct(out header))
+			{
+				return null;
+			}
+
+			BaseRecord record = null;
+			if (header.record.typeId == StreamUtils.FOURCC("GRUP"))
+			{
+				// Group record
+				var groupRecord = new GroupRecord
+				{
+					Header = header
+				};
+
+				LoadGroup(groupRecord);
+
+				record = groupRecord;
+			}
+			else
+			{
+				// Ordinary
+			}
+
+			return record;
+		}
+
 		public ESMInfo Load()
 		{
 			LoadHeader();
 
 			while(!Reader.EndOfStream())
 			{
-				RecordHeader header;
-				if (!Reader.ReadStruct(out header))
+				var record = LoadItem();
+				if (record == null)
 				{
 					break;
-				}
-
-				if (header.record.typeId == StreamUtils.FOURCC("GRUP"))
-				{
-					// Group record
-				} else
-				{
-					// Ordinary
 				}
 			}
 

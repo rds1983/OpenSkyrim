@@ -1,6 +1,6 @@
 ﻿namespace OpenSkyrim.Data
 {
-	public class ESMRecord
+	public class BaseRecord
 	{
 		public RecordHeader Header;
 	}
