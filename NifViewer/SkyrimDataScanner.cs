@@ -109,6 +109,7 @@ namespace OpenSkyrim.NifViewer
 
             return nifFiles
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Take(500)
                 .ToList();
         }
     }

@@ -124,7 +124,7 @@ namespace OpenSkyrim.NifViewer
 				});
 			}
 
-			_countLabel.Text = $"Found {nifFiles.Count} .nif file(s) in {_skyrimFolder}";
+			_countLabel.Text = $"Showing first {nifFiles.Count} .nif file(s) in {_skyrimFolder}";
 		}
 
 		protected override void Draw(GameTime gameTime)
