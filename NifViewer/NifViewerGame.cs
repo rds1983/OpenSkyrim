@@ -20,6 +20,7 @@ namespace OpenSkyrim.NifViewer
 		private readonly string _skyrimFolder;
 
 		private Desktop _desktop;
+		private ComboView _archiveComboBox;
 		private ListView _listView;
 		private DrModelViewWidget _viewer;
 		private Label _headerLabel;
@@ -59,6 +60,16 @@ namespace OpenSkyrim.NifViewer
 			_countLabel = new Label
 			{
 				HorizontalAlignment = HorizontalAlignment.Stretch
+			};
+
+			_archiveComboBox = new ComboView
+			{
+				HorizontalAlignment = HorizontalAlignment.Stretch,
+				VerticalAlignment = VerticalAlignment.Stretch
+			};
+			_archiveComboBox.SelectedIndexChanged += (s, a) =>
+			{
+				PopulateListView(GetSelectedArchivePath());
 			};
 
 			_listView = new ListView
@@ -136,6 +147,7 @@ namespace OpenSkyrim.NifViewer
 			grid.ColumnsProportions.Add(new Proportion(ProportionType.Part, 2.0f));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
+			grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Pixels, 24));
 
@@ -145,16 +157,20 @@ namespace OpenSkyrim.NifViewer
 			Grid.SetColumn(_countLabel, 0);
 			Grid.SetColumnSpan(_countLabel, 2);
 			Grid.SetRow(_countLabel, 1);
+			Grid.SetColumn(_archiveComboBox, 0);
+			Grid.SetColumnSpan(_archiveComboBox, 2);
+			Grid.SetRow(_archiveComboBox, 2);
 			Grid.SetColumn(_listView, 0);
-			Grid.SetRow(_listView, 2);
+			Grid.SetRow(_listView, 3);
 			Grid.SetColumn(_viewer, 1);
-			Grid.SetRow(_viewer, 2);
+			Grid.SetRow(_viewer, 3);
 			Grid.SetColumn(_statusLabel, 0);
 			Grid.SetColumnSpan(_statusLabel, 2);
-			Grid.SetRow(_statusLabel, 3);
+			Grid.SetRow(_statusLabel, 4);
 
 			grid.Widgets.Add(_headerLabel);
 			grid.Widgets.Add(_countLabel);
+			grid.Widgets.Add(_archiveComboBox);
 			grid.Widgets.Add(_listView);
 			grid.Widgets.Add(_viewer);
 			grid.Widgets.Add(_statusLabel);
@@ -164,15 +180,63 @@ namespace OpenSkyrim.NifViewer
 				Root = grid
 			};
 
-			PopulateListView();
+			PopulateArchiveCombo();
+			PopulateListView(GetSelectedArchivePath());
 		}
 
-		private void PopulateListView()
+		private string GetSelectedArchivePath()
 		{
+			return (_archiveComboBox.SelectedItem as Label)?.Tag as string;
+		}
+
+		private void PopulateArchiveCombo()
+		{
+			_archiveComboBox.Widgets.Clear();
+
+			var archives = Directory.EnumerateFiles(_skyrimFolder, "*.bsa", SearchOption.AllDirectories)
+				.OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+				.ToList();
+
+			foreach (var archive in archives)
+			{
+				_archiveComboBox.Widgets.Add(new Label
+				{
+					Text = Path.GetFileName(archive),
+					Tag = archive
+				});
+			}
+
+			if (_archiveComboBox.Widgets.Count > 0)
+			{
+				_archiveComboBox.SelectedIndex = 0;
+			}
+		}
+
+		private void PopulateListView(string selectedArchive = null)
+		{
+			_listView.Widgets.Clear();
+
 			var nifFiles = new List<string>();
 			try
 			{
-				nifFiles.AddRange(SkyrimDataScanner.EnumerateNifFiles(_skyrimFolder));
+				var allFiles = SkyrimDataScanner.EnumerateNifFiles(_skyrimFolder);
+				foreach (var file in allFiles)
+				{
+					if (string.IsNullOrWhiteSpace(selectedArchive))
+					{
+						nifFiles.Add(file);
+						continue;
+					}
+
+					if (file.Contains("::", StringComparison.Ordinal))
+					{
+						var archivePath = file.Substring(0, file.IndexOf("::", StringComparison.Ordinal));
+						if (string.Equals(archivePath, selectedArchive, StringComparison.OrdinalIgnoreCase))
+						{
+							nifFiles.Add(file);
+						}
+					}
+				}
 			}
 			catch (Exception ex)
 			{
@@ -194,7 +258,14 @@ namespace OpenSkyrim.NifViewer
 				});
 			}
 
-			_countLabel.Text = $"Showing first {nifFiles.Count} .nif file(s) in {_skyrimFolder}";
+			if (string.IsNullOrWhiteSpace(selectedArchive))
+			{
+				_countLabel.Text = $"Showing {nifFiles.Count} .nif file(s) in {_skyrimFolder}";
+			}
+			else
+			{
+				_countLabel.Text = $"Showing {nifFiles.Count} .nif file(s) in {Path.GetFileName(selectedArchive)}";
+			}
 		}
 
 		protected override void Update(GameTime gameTime)
