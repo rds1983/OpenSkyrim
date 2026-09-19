@@ -1,10 +1,17 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using AssetManagementBase;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Mutagen.Bethesda.Archives;
+using Mutagen.Bethesda.Plugins.Meta;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Noggog;
 using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
@@ -20,6 +27,7 @@ namespace OpenSkyrim.NifViewer
 		private readonly NursiaModelNode _modelNode = new NursiaModelNode();
 		private readonly Camera _camera = new Camera();
 		private readonly CameraInputController _cameraController;
+		private string _sourcePath;
 
 		public DrModelViewWidget()
 		{
@@ -42,18 +50,26 @@ namespace OpenSkyrim.NifViewer
 			_camera.FarPlane = 1000f;
 		}
 
+		public string DataDirectory { get; set; }
+
+		public string SourcePath
+		{
+			get => _sourcePath;
+			set => _sourcePath = value;
+		}
+
 		public DrModel Model
 		{
 			get => _modelNode.Model;
 			set
 			{
 				_modelNode.Model = value;
-				_modelNode.Materials = BuildPurpleMaterials(value);
+				_modelNode.Materials = BuildMaterials(value);
 				ResetCamera();
 			}
 		}
 
-		private static IMaterial[][] BuildPurpleMaterials(DrModel model)
+		private IMaterial[][] BuildMaterials(DrModel model)
 		{
 			if (model == null)
 			{
@@ -68,14 +84,177 @@ namespace OpenSkyrim.NifViewer
 
 				for (var partIndex = 0; partIndex < mesh.MeshParts.Count; ++partIndex)
 				{
-					materials[meshIndex][partIndex] = new UnlitMaterial
+					var texturePath = ResolveTexturePath(mesh.Name);
+					var material = new UnlitMaterial
 					{
-						DiffuseColor = new Color(0.75f, 0.25f, 1f)
+						DiffuseColor = Color.White,
+						Texture = TryLoadTexture(texturePath)
 					};
+
+					materials[meshIndex][partIndex] = material;
 				}
 			}
 
 			return materials;
+		}
+
+		private Texture2D TryLoadTexture(string texturePath)
+		{
+			if (string.IsNullOrWhiteSpace(texturePath))
+			{
+				return null;
+			}
+
+			try
+			{
+				if (texturePath.StartsWith("bsa://", StringComparison.OrdinalIgnoreCase))
+				{
+					var parts = texturePath.Substring("bsa://".Length).Split(new[] { "|" }, 2, StringSplitOptions.None);
+					if (parts.Length == 2)
+					{
+						var archivePath = parts[0];
+						var assetName = parts[1].Replace('\\', '/').TrimStart('/');
+						var bsaAssetManager = new AssetManager(new BsaAssetResolver(archivePath), DataDirectory ?? string.Empty);
+						return (Texture2D)bsaAssetManager.LoadTexture(MyraEnvironment.GraphicsDevice, assetName);
+					}
+				}
+
+				var resolvedPath = texturePath;
+				if (!Path.IsPathRooted(resolvedPath))
+				{
+					resolvedPath = Path.Combine(DataDirectory ?? string.Empty, resolvedPath.Replace('/', '\\'));
+				}
+
+				if (!File.Exists(resolvedPath))
+				{
+					return null;
+				}
+
+				var assetManager = AssetManager.CreateFileAssetManager(Path.GetDirectoryName(resolvedPath)!);
+				return (Texture2D)assetManager.LoadTexture(MyraEnvironment.GraphicsDevice, $"@{resolvedPath}");
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private string ResolveTexturePath(string meshName)
+		{
+			var loosePath = ResolveLooseTexturePath(meshName);
+			if (!string.IsNullOrWhiteSpace(loosePath))
+			{
+				return loosePath;
+			}
+
+			return ResolveArchiveTexturePath(meshName);
+		}
+
+		private string ResolveLooseTexturePath(string meshName)
+		{
+			if (string.IsNullOrWhiteSpace(DataDirectory) || !Directory.Exists(DataDirectory))
+			{
+				return null;
+			}
+
+			var texturesRoot = Path.Combine(DataDirectory, "Textures");
+			if (!Directory.Exists(texturesRoot))
+			{
+				return null;
+			}
+
+			var candidateNames = GetTextureCandidates(meshName);
+			foreach (var candidate in candidateNames)
+			{
+				var matches = Directory.EnumerateFiles(texturesRoot, "*.*", SearchOption.AllDirectories)
+					.Where(file => file.EndsWith(".dds", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+					.Where(file =>
+					{
+						var stem = Path.GetFileNameWithoutExtension(file);
+						return string.Equals(stem, candidate, StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(stem, candidate + "_d", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(stem, candidate + "_diff", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(stem, candidate + "_color", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(stem, candidate + "_albedo", StringComparison.OrdinalIgnoreCase);
+					})
+					.ToArray();
+
+				if (matches.Length > 0)
+				{
+					return matches[0];
+				}
+			}
+
+			return null;
+		}
+
+		private string ResolveArchiveTexturePath(string meshName)
+		{
+			if (string.IsNullOrWhiteSpace(DataDirectory) || !Directory.Exists(DataDirectory))
+			{
+				return null;
+			}
+
+			var candidateNames = GetTextureCandidates(meshName);
+			foreach (var bsaFile in Directory.EnumerateFiles(DataDirectory, "*.bsa", SearchOption.AllDirectories))
+			{
+				try
+				{
+					var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(bsaFile));
+					foreach (var archiveFile in archive.Files)
+					{
+						if (!string.Equals(Path.GetExtension(archiveFile.Path), ".dds", StringComparison.OrdinalIgnoreCase))
+						{
+							continue;
+						}
+
+						var archiveStem = Path.GetFileNameWithoutExtension(archiveFile.Path);
+						if (!candidateNames.Any(candidate =>
+							string.Equals(archiveStem, candidate, StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(archiveStem, candidate + "_d", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(archiveStem, candidate + "_diff", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(archiveStem, candidate + "_color", StringComparison.OrdinalIgnoreCase)
+							|| string.Equals(archiveStem, candidate + "_albedo", StringComparison.OrdinalIgnoreCase)))
+						{
+							continue;
+						}
+
+						return $"bsa://{bsaFile}|{archiveFile.Path.Replace('\\', '/')}";
+					}
+				}
+				catch
+				{
+					// Ignore invalid or unreadable archives and keep searching.
+				}
+			}
+
+			return null;
+		}
+
+		private List<string> GetTextureCandidates(string meshName)
+		{
+			var candidateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			var sourceStem = Path.GetFileNameWithoutExtension(_sourcePath ?? string.Empty);
+			if (!string.IsNullOrWhiteSpace(sourceStem))
+			{
+				candidateNames.Add(sourceStem);
+				candidateNames.Add(sourceStem.Replace("_nif", string.Empty, StringComparison.OrdinalIgnoreCase));
+			}
+
+			if (!string.IsNullOrWhiteSpace(meshName))
+			{
+				candidateNames.Add(meshName);
+				candidateNames.Add(meshName.Replace("_nif", string.Empty, StringComparison.OrdinalIgnoreCase));
+				candidateNames.Add(meshName + "_d");
+				candidateNames.Add(meshName + "_diff");
+				candidateNames.Add(meshName + "_color");
+				candidateNames.Add(meshName + "_albedo");
+			}
+
+			return candidateNames
+				.Where(n => !string.IsNullOrWhiteSpace(n))
+				.Select(n => n.Trim())
+				.ToList();
 		}
 
 		public void UpdateCameraInput()
