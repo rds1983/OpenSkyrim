@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <Authors>OpenSkyrimTeam</Authors>
+    <Product>OpenSkyrim</Product>
+    <PackageLicenseExpression>GPL</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/rds1983/OpenSkyrim</PackageProjectUrl>
+    <Description>nsane attempt to rewrite Skyrim in C#</Description>
+    <RootNamespace>OpenSkyrim</RootNamespace>
+    <MonoGameTargetFramework>net8.0</MonoGameTargetFramework>
+    <FNATargetFramework>net8.0</FNATargetFramework>
+    <Version>0.1.0</Version>
+    <MonoGameVersion>3.8.4.1</MonoGameVersion>
+    <MyraVersion>1.5.10</MyraVersion>
+    <NursiaVersion>0.6.0</NursiaVersion>
+    <MutagenVersion>0.52.0</MutagenVersion>
+  </PropertyGroup>
+</Project>

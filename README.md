@@ -15,6 +15,16 @@ The engine is built on the following open-source libraries:
 | Nursia             | 3D scene rendering and navigation                    | https://github.com/rds1983/Nursia                         |
 | Mutagen            | Parsing, creating, and editing Bethesda plugin files (*.esp / *.esm) | https://github.com/Mutagen-Modding/Mutagen
 
+## Repository Layout
+
+| Project    | Description                                             |
+| ---------- | ------------------------------------------------------- |
+| `NifViewer`| Console tool that scans a Skyrim installation and lists all `.nif` files in a Myra-based `ListView` GUI |
+
+## Mutagen Notes
+
+For the project’s findings on working with Bethesda data files and Mutagen-based archive scanning, see [MUTAGEN_NOTES.md](MUTAGEN_NOTES.md).
+
 ## Roadmap
 
 TBD — planning in progress.

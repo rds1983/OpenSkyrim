@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+*.user
+
+# FNA native libraries are redistributed binaries, not part of the source
+NifViewer/lib/native/

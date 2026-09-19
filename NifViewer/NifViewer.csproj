@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>NifViewer</AssemblyName>
+    <RootNamespace>OpenSkyrim.NifViewer</RootNamespace>
+    <DefineConstants>$(DefineConstants);FNA</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\FNA\FNA.Core.csproj" />
+    <ProjectReference Include="..\..\Myra\src\Myra\Myra.FNA.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="lib\native\**\*.*" Condition="Exists('lib\native')">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mutagen.Bethesda.Core" Version="0.52.0" />
+  </ItemGroup>
+
+</Project>
