@@ -193,6 +193,12 @@ namespace OpenSkyrim.NifViewer
 			_countLabel.Text = $"Showing first {nifFiles.Count} .nif file(s) in {_skyrimFolder}";
 		}
 
+		protected override void Update(GameTime gameTime)
+		{
+			base.Update(gameTime);
+			_viewer?.UpdateCameraInput();
+		}
+
 		protected override void Draw(GameTime gameTime)
 		{
 			base.Draw(gameTime);

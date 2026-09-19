@@ -5,9 +5,11 @@ using Microsoft.Xna.Framework.Graphics;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
+using Nursia.Utilities;
 
 namespace OpenSkyrim.NifViewer
 {
@@ -17,9 +19,17 @@ namespace OpenSkyrim.NifViewer
 		private readonly Scene _scene = new Scene();
 		private readonly NursiaModelNode _modelNode = new NursiaModelNode();
 		private readonly Camera _camera = new Camera();
+		private readonly CameraInputController _cameraController;
 
 		public DrModelViewWidget()
 		{
+			_cameraController = new CameraInputController(_camera)
+			{
+				MoveSpeed = 2.5f,
+				RotationSpeed = 0.15f,
+				SprintMultiplier = 2.5f
+			};
+
 			var root = new SceneNode();
 			root.Children.Add(new DirectLight { Rotation = new Vector3(45, 45, 0), CastsShadow = false });
 			root.Children.Add(new DirectLight { Rotation = new Vector3(225, 45, 0), CastsShadow = false });
@@ -38,7 +48,41 @@ namespace OpenSkyrim.NifViewer
 			set
 			{
 				_modelNode.Model = value;
+				_modelNode.Materials = BuildPurpleMaterials(value);
 				ResetCamera();
+			}
+		}
+
+		private static IMaterial[][] BuildPurpleMaterials(DrModel model)
+		{
+			if (model == null)
+			{
+				return null;
+			}
+
+			var materials = new IMaterial[model.Meshes.Length][];
+			for (var meshIndex = 0; meshIndex < model.Meshes.Length; ++meshIndex)
+			{
+				var mesh = model.Meshes[meshIndex];
+				materials[meshIndex] = new IMaterial[mesh.MeshParts.Count];
+
+				for (var partIndex = 0; partIndex < mesh.MeshParts.Count; ++partIndex)
+				{
+					materials[meshIndex][partIndex] = new UnlitMaterial
+					{
+						DiffuseColor = new Color(0.75f, 0.25f, 1f)
+					};
+				}
+			}
+
+			return materials;
+		}
+
+		public void UpdateCameraInput()
+		{
+			if (_modelNode.Model != null)
+			{
+				_cameraController.Update();
 			}
 		}
 
