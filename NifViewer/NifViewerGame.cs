@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Microsoft.Xna.Framework;
+using Mutagen.Bethesda.Archives;
+using Mutagen.Bethesda.Plugins.Meta;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Noggog;
 
 namespace OpenSkyrim.NifViewer
 {
@@ -60,7 +64,40 @@ namespace OpenSkyrim.NifViewer
 			_listView.SelectedIndexChanged += (s, a) =>
 			{
 				var item = _listView.SelectedItem as Label;
-				_statusLabel.Text = item?.Tag?.ToString() ?? item?.Text ?? string.Empty;
+				var path = item?.Tag?.ToString() ?? item?.Text ?? string.Empty;
+
+				try
+				{
+					if (path.Contains("::", StringComparison.Ordinal))
+					{
+						var split = path.Split(new[] { "::" }, 2, StringSplitOptions.None);
+						var archivePath = split[0];
+						var archiveEntryPath = split[1];
+						var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(archivePath));
+						var archiveFile = archive.Files.FirstOrDefault(f => string.Equals(f.Path, archiveEntryPath, StringComparison.OrdinalIgnoreCase));
+
+						if (archiveFile != null)
+						{
+							using var memoryStream = new MemoryStream(archiveFile.GetBytes());
+							var model = NifModelLoader.LoadDrModel(GraphicsDevice, memoryStream, Path.GetFileNameWithoutExtension(archiveEntryPath));
+							_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {archiveEntryPath} ({archivePath})";
+							return;
+						}
+					}
+
+					if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+					{
+						var model = NifModelLoader.LoadDrModel(GraphicsDevice, path);
+						_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
+						return;
+					}
+
+					_statusLabel.Text = path;
+				}
+				catch (Exception ex)
+				{
+					_statusLabel.Text = ex.Message;
+				}
 			};
 
 			_statusLabel = new Label

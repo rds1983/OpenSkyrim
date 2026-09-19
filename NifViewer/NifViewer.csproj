@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\FNA\FNA.Core.csproj" />
     <ProjectReference Include="..\..\Myra\src\Myra\Myra.FNA.Core.csproj" />
+    <ProjectReference Include="..\..\DigitalRiseModel\DigitalRiseModel\DigitalRiseModel.FNA.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +25,7 @@
 
   <ItemGroup>
     <PackageReference Include="Mutagen.Bethesda.Core" Version="0.52.0" />
+    <PackageReference Include="Nifly" Version="0.1.0" />
   </ItemGroup>
 
 </Project>

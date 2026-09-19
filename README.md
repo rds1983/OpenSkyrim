@@ -25,6 +25,10 @@ The engine is built on the following open-source libraries:
 
 For the project’s findings on working with Bethesda data files and Mutagen-based archive scanning, see [MUTAGEN_NOTES.md](MUTAGEN_NOTES.md).
 
+## NIF Reference
+
+The project used code and format knowledge from the [nifscope / NifSkope repository](https://github.com/niftools/nifskope) to implement its own NIF parser for Gamebryo assets and mesh extraction.
+
 ## Roadmap
 
 TBD — planning in progress.
