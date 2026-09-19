@@ -1,14 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using Noggog;
+using Nursia;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace OpenSkyrim.NifViewer
 {
@@ -19,6 +21,7 @@ namespace OpenSkyrim.NifViewer
 
 		private Desktop _desktop;
 		private ListView _listView;
+		private DrModelViewWidget _viewer;
 		private Label _headerLabel;
 		private Label _countLabel;
 		private Label _statusLabel;
@@ -42,7 +45,10 @@ namespace OpenSkyrim.NifViewer
 		{
 			base.LoadContent();
 
+			GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.PreserveContents;
+
 			MyraEnvironment.Game = this;
+			Nrs.Game = this;
 
 			_headerLabel = new Label
 			{
@@ -59,6 +65,12 @@ namespace OpenSkyrim.NifViewer
 			{
 				HorizontalAlignment = HorizontalAlignment.Stretch,
 				VerticalAlignment = VerticalAlignment.Stretch
+			};
+
+			_viewer = new DrModelViewWidget
+			{
+				HorizontalAlignment = HorizontalAlignment.Stretch,
+				VerticalAlignment = VerticalAlignment.Stretch,
 			};
 
 			_listView.SelectedIndexChanged += (s, a) =>
@@ -80,6 +92,7 @@ namespace OpenSkyrim.NifViewer
 						{
 							using var memoryStream = new MemoryStream(archiveFile.GetBytes());
 							var model = NifModelLoader.LoadDrModel(GraphicsDevice, memoryStream, Path.GetFileNameWithoutExtension(archiveEntryPath));
+							_viewer.Model = model;
 							_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {archiveEntryPath} ({archivePath})";
 							return;
 						}
@@ -88,14 +101,17 @@ namespace OpenSkyrim.NifViewer
 					if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
 					{
 						var model = NifModelLoader.LoadDrModel(GraphicsDevice, path);
+						_viewer.Model = model;
 						_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
 						return;
 					}
 
+					_viewer.Model = null;
 					_statusLabel.Text = path;
 				}
 				catch (Exception ex)
 				{
+					_viewer.Model = null;
 					_statusLabel.Text = ex.Message;
 				}
 			};
@@ -108,22 +124,35 @@ namespace OpenSkyrim.NifViewer
 			var grid = new Grid
 			{
 				RowSpacing = 4,
+				ColumnSpacing = 8,
 				Padding = new Thickness(8)
 			};
 
+			grid.ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
+			grid.ColumnsProportions.Add(new Proportion(ProportionType.Part, 2.0f));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Auto));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
 			grid.RowsProportions.Add(new Proportion(ProportionType.Pixels, 24));
 
+			Grid.SetColumn(_headerLabel, 0);
+			Grid.SetColumnSpan(_headerLabel, 2);
 			Grid.SetRow(_headerLabel, 0);
+			Grid.SetColumn(_countLabel, 0);
+			Grid.SetColumnSpan(_countLabel, 2);
 			Grid.SetRow(_countLabel, 1);
+			Grid.SetColumn(_listView, 0);
 			Grid.SetRow(_listView, 2);
+			Grid.SetColumn(_viewer, 1);
+			Grid.SetRow(_viewer, 2);
+			Grid.SetColumn(_statusLabel, 0);
+			Grid.SetColumnSpan(_statusLabel, 2);
 			Grid.SetRow(_statusLabel, 3);
 
 			grid.Widgets.Add(_headerLabel);
 			grid.Widgets.Add(_countLabel);
 			grid.Widgets.Add(_listView);
+			grid.Widgets.Add(_viewer);
 			grid.Widgets.Add(_statusLabel);
 
 			_desktop = new Desktop
