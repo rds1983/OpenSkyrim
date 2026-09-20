@@ -9,12 +9,12 @@ namespace OpenSkyrim.NifViewer
 		{
 			try
 			{
-				var skyrimFolder = args.Length > 0 ? args[0] : SkyrimDataScanner.DefaultSkyrimFolder;
-				var dataFolder = SkyrimDataScanner.ResolveSkyrimDataFolder(skyrimFolder);
+				var skyrimFolder = args.Length > 0 ? args[0] : SkyrimData.DefaultSkyrimFolder;
+				var dataFolder = SkyrimData.ResolveSkyrimDataFolder(skyrimFolder);
 				if (!Directory.Exists(dataFolder))
 				{
 					Console.WriteLine($"Skyrim data folder '{dataFolder}' does not exist.");
-					Console.WriteLine($"Expected a Skyrim install under '{SkyrimDataScanner.DefaultSkyrimFolder}' or pass a path to the game root.");
+					Console.WriteLine($"Expected a Skyrim install under '{SkyrimData.DefaultSkyrimFolder}' or pass a path to the game root.");
 					return 1;
 				}
 

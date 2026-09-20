@@ -1,11 +1,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Mutagen.Bethesda.Archives;
-using Mutagen.Bethesda.Plugins.Meta;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
-using Noggog;
 using Nursia;
 using System;
 using System.Collections.Generic;
@@ -29,7 +26,7 @@ namespace OpenSkyrim.NifViewer
 
 		public NifViewerGame(string skyrimFolder)
 		{
-			_skyrimFolder = SkyrimDataScanner.ResolveSkyrimDataFolder(skyrimFolder);
+			_skyrimFolder = SkyrimData.ResolveSkyrimDataFolder(skyrimFolder);
 
 			_graphics = new GraphicsDeviceManager(this)
 			{
@@ -96,12 +93,10 @@ namespace OpenSkyrim.NifViewer
 						var split = path.Split(new[] { "::" }, 2, StringSplitOptions.None);
 						var archivePath = split[0];
 						var archiveEntryPath = split[1];
-						var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(archivePath));
-						var archiveFile = archive.Files.FirstOrDefault(f => string.Equals(f.Path, archiveEntryPath, StringComparison.OrdinalIgnoreCase));
 
-						if (archiveFile != null)
+						if (SkyrimData.TryGet(Path.GetFileName(archivePath), out var archiveInfo))
 						{
-							using var memoryStream = new MemoryStream(archiveFile.GetBytes());
+							using var memoryStream = archiveInfo.Open(archiveEntryPath);
 							var model = NifModelLoader.LoadDrModel(GraphicsDevice, memoryStream, Path.GetFileNameWithoutExtension(archiveEntryPath));
 							_viewer.DataDirectory = _skyrimFolder;
 							_viewer.SourcePath = archiveEntryPath;
@@ -180,6 +175,7 @@ namespace OpenSkyrim.NifViewer
 				Root = grid
 			};
 
+			SkyrimData.Initialize(_skyrimFolder);
 			PopulateArchiveCombo();
 			PopulateListView(GetSelectedArchivePath());
 		}
@@ -193,16 +189,15 @@ namespace OpenSkyrim.NifViewer
 		{
 			_archiveComboBox.Widgets.Clear();
 
-			var archives = Directory.EnumerateFiles(_skyrimFolder, "*.bsa", SearchOption.AllDirectories)
-				.OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-				.ToList();
+			var archives = SkyrimData.Archives.Values.ToList();
+			archives.Sort((a, b) => string.Compare(a.ArchivePath, b.ArchivePath, StringComparison.OrdinalIgnoreCase));
 
 			foreach (var archive in archives)
 			{
 				_archiveComboBox.Widgets.Add(new Label
 				{
-					Text = Path.GetFileName(archive),
-					Tag = archive
+					Text = Path.GetFileName(archive.ArchivePath),
+					Tag = archive.ArchivePath
 				});
 			}
 
@@ -219,23 +214,29 @@ namespace OpenSkyrim.NifViewer
 			var nifFiles = new List<string>();
 			try
 			{
-				var allFiles = SkyrimDataScanner.EnumerateNifFiles(_skyrimFolder);
-				foreach (var file in allFiles)
+				if (Directory.Exists(_skyrimFolder))
 				{
-					if (string.IsNullOrWhiteSpace(selectedArchive))
+					foreach (var file in Directory.EnumerateFiles(_skyrimFolder, "*.nif", SearchOption.AllDirectories))
 					{
 						nifFiles.Add(file);
-						continue;
 					}
+				}
 
-					if (file.Contains("::", StringComparison.Ordinal))
+				foreach (var archive in SkyrimData.Archives.Values)
+				{
+					foreach (var file in archive.Files)
 					{
-						var archivePath = file.Substring(0, file.IndexOf("::", StringComparison.Ordinal));
-						if (string.Equals(archivePath, selectedArchive, StringComparison.OrdinalIgnoreCase))
+						if (string.Equals(Path.GetExtension(file), ".nif", StringComparison.OrdinalIgnoreCase))
 						{
-							nifFiles.Add(file);
+							nifFiles.Add($"{archive.ArchivePath}::{file}");
 						}
 					}
+				}
+
+				if (!string.IsNullOrWhiteSpace(selectedArchive))
+				{
+					nifFiles.RemoveAll(file => !file.Contains("::", StringComparison.Ordinal)
+						|| !string.Equals(file.Substring(0, file.IndexOf("::", StringComparison.Ordinal)), selectedArchive, StringComparison.OrdinalIgnoreCase));
 				}
 			}
 			catch (Exception ex)

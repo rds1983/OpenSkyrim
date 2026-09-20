@@ -6,12 +6,9 @@ using AssetManagementBase;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Mutagen.Bethesda.Archives;
-using Mutagen.Bethesda.Plugins.Meta;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
-using Noggog;
 using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
@@ -114,8 +111,12 @@ namespace OpenSkyrim.NifViewer
 					{
 						var archivePath = parts[0];
 						var assetName = parts[1].Replace('\\', '/').TrimStart('/');
-						var bsaAssetManager = new AssetManager(new BsaAssetResolver(archivePath), DataDirectory ?? string.Empty);
-						return (Texture2D)bsaAssetManager.LoadTexture(MyraEnvironment.GraphicsDevice, assetName);
+						var archiveInfo = SkyrimData.Archives.Values.FirstOrDefault(a => string.Equals(a.ArchivePath, archivePath, StringComparison.OrdinalIgnoreCase));
+						if (archiveInfo != null)
+						{
+							var bsaAssetManager = new AssetManager(archiveInfo.CreateAssetResolver(), DataDirectory ?? string.Empty);
+							return (Texture2D)bsaAssetManager.LoadTexture(MyraEnvironment.GraphicsDevice, assetName);
+						}
 					}
 				}
 
@@ -140,7 +141,7 @@ namespace OpenSkyrim.NifViewer
 		}
 
 		private string ResolveTexturePath(string meshName)
-		{
+			{
 			var loosePath = ResolveLooseTexturePath(meshName);
 			if (!string.IsNullOrWhiteSpace(loosePath))
 			{
@@ -196,35 +197,27 @@ namespace OpenSkyrim.NifViewer
 			}
 
 			var candidateNames = GetTextureCandidates(meshName);
-			foreach (var bsaFile in Directory.EnumerateFiles(DataDirectory, "*.bsa", SearchOption.AllDirectories))
+			foreach (var archiveInfo in SkyrimData.Archives.Values)
 			{
-				try
+				foreach (var archiveFilePath in archiveInfo.Files)
 				{
-					var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(bsaFile));
-					foreach (var archiveFile in archive.Files)
+					if (!string.Equals(Path.GetExtension(archiveFilePath), ".dds", StringComparison.OrdinalIgnoreCase))
 					{
-						if (!string.Equals(Path.GetExtension(archiveFile.Path), ".dds", StringComparison.OrdinalIgnoreCase))
-						{
-							continue;
-						}
-
-						var archiveStem = Path.GetFileNameWithoutExtension(archiveFile.Path);
-						if (!candidateNames.Any(candidate =>
-							string.Equals(archiveStem, candidate, StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(archiveStem, candidate + "_d", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(archiveStem, candidate + "_diff", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(archiveStem, candidate + "_color", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(archiveStem, candidate + "_albedo", StringComparison.OrdinalIgnoreCase)))
-						{
-							continue;
-						}
-
-						return $"bsa://{bsaFile}|{archiveFile.Path.Replace('\\', '/')}";
+						continue;
 					}
-				}
-				catch
-				{
-					// Ignore invalid or unreadable archives and keep searching.
+
+					var archiveStem = Path.GetFileNameWithoutExtension(archiveFilePath);
+					if (!candidateNames.Any(candidate =>
+						string.Equals(archiveStem, candidate, StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(archiveStem, candidate + "_d", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(archiveStem, candidate + "_diff", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(archiveStem, candidate + "_color", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(archiveStem, candidate + "_albedo", StringComparison.OrdinalIgnoreCase)))
+					{
+						continue;
+					}
+
+					return $"bsa://{archiveInfo.ArchivePath}|{archiveFilePath.Replace('\\', '/')}";
 				}
 			}
 
@@ -255,6 +248,69 @@ namespace OpenSkyrim.NifViewer
 				.Where(n => !string.IsNullOrWhiteSpace(n))
 				.Select(n => n.Trim())
 				.ToList();
+		}
+
+		public static (uint Width, uint Height, uint PixelFormat) ParseDdsHeader(Stream stream)
+		{
+			if (stream == null)
+			{
+				throw new ArgumentNullException(nameof(stream));
+			}
+
+			var originalPosition = stream.CanSeek ? stream.Position : 0L;
+			try
+			{
+				if (stream.CanSeek)
+				{
+					stream.Position = 0;
+				}
+
+				using var reader = new BinaryReader(stream, System.Text.Encoding.ASCII, leaveOpen: true);
+				if (reader.ReadByte() != (byte)'D' || reader.ReadByte() != (byte)'D' || reader.ReadByte() != (byte)'S' || reader.ReadByte() != (byte)' ')
+				{
+					throw new InvalidOperationException("Not a DDS file");
+				}
+
+				var size = reader.ReadUInt32();
+				if (size != 124)
+				{
+					throw new InvalidOperationException($"Unsupported DDS header size: {size}");
+				}
+
+				var height = reader.ReadUInt32();
+				var width = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				for (var i = 0; i < 11; ++i)
+				{
+					_ = reader.ReadUInt32();
+				}
+
+				var pixelFormatSize = reader.ReadUInt32();
+				if (pixelFormatSize != 32)
+				{
+					throw new InvalidOperationException($"Unsupported DDS pixel format size: {pixelFormatSize}");
+				}
+
+				var flags = reader.ReadUInt32();
+				var fourCc = reader.ReadUInt32();
+				var rgbBitCount = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+				_ = reader.ReadUInt32();
+
+				return (width, height, fourCc != 0 ? fourCc : flags + rgbBitCount);
+			}
+			finally
+			{
+				if (stream.CanSeek)
+				{
+					stream.Position = originalPosition;
+				}
+			}
 		}
 
 		public void UpdateCameraInput()

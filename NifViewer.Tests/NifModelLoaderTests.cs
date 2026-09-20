@@ -53,7 +53,7 @@ public class NifModelLoaderTests
     [Fact]
     public void ParseMeshDefinitions_LoadsRealSkyrimFishingMesh()
     {
-        var bsaPath = Path.Combine(SkyrimDataScanner.DefaultSkyrimFolder, "Data", "ccBGSSSE001-Fish.bsa");
+        var bsaPath = Path.Combine(SkyrimData.DefaultSkyrimFolder, "Data", "ccBGSSSE001-Fish.bsa");
         if (!File.Exists(bsaPath))
         {
             return;
@@ -76,7 +76,7 @@ public class NifModelLoaderTests
     [Fact]
     public void ParseDdsFromArchive_LoadsRealSkyrimTextureHeader()
     {
-        var dataFolder = Path.Combine(SkyrimDataScanner.DefaultSkyrimFolder, "Data");
+        var dataFolder = Path.Combine(SkyrimData.DefaultSkyrimFolder, "Data");
         var bsaPath = Directory.EnumerateFiles(dataFolder, "Skyrim - Textures*.bsa", SearchOption.TopDirectoryOnly)
             .FirstOrDefault();
 

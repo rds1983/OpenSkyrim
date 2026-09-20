@@ -50,26 +50,18 @@ The project also recognizes `.esm`, `.esp`, and `.esl` files under the data dire
 ## Recommended implementation pattern
 
 ```csharp
-var dataFolder = SkyrimDataScanner.ResolveSkyrimDataFolder(skyrimFolder);
-var nifFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+// Registers every .bsa archive under the Skyrim Data folder into SkyrimData.
+SkyrimData.Initialize(skyrimFolder);
 
-foreach (var bsaFile in Directory.EnumerateFiles(dataFolder, "*.bsa", SearchOption.AllDirectories))
+if (SkyrimData.TryGet("Skyrim - Meshes.bsa", out var archiveInfo))
 {
-    try
+    foreach (var file in archiveInfo.Files)
     {
-        var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(bsaFile));
-
-        foreach (var file in archive.Files)
+        if (string.Equals(Path.GetExtension(file), ".nif", StringComparison.OrdinalIgnoreCase))
         {
-            if (string.Equals(Path.GetExtension(file.Path), ".nif", StringComparison.OrdinalIgnoreCase))
-            {
-                nifFiles.Add($"{bsaFile}::{file.Path}");
-            }
+            using var stream = archiveInfo.Open(file);
+            // consume the entry
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Failed to parse BSA '{bsaFile}': {ex.Message}");
     }
 }
 ```
