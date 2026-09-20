@@ -1,318 +1,143 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using NiflySharp;
+using NiflySharp.Blocks;
+using NiflySharp.Structs;
 
 namespace OpenSkyrim.NifViewer
 {
-    public sealed class NifMeshDefinition
-    {
-        public string Name { get; set; } = string.Empty;
-        public List<Vector3> Vertices { get; } = new();
-        public List<Vector3> Normals { get; } = new();
-        public List<Vector2> Uvs { get; } = new();
-        public List<int> Indices { get; } = new();
-    }
+	public sealed class NifMeshDefinition
+	{
+		public string Name { get; set; } = string.Empty;
+		public List<Vector3> Vertices { get; } = new();
+		public List<Vector3> Normals { get; } = new();
+		public List<Vector2> Uvs { get; } = new();
+		public List<int> Indices { get; } = new();
+		public List<string> Textures { get; } = new();
+	}
 
-    public static class NifModelLoader
-    {
-        private static bool IsGamebryoHeaderText(string headerText)
-        {
-            return headerText.StartsWith("Gamebryo File Format, Version ", StringComparison.OrdinalIgnoreCase)
-                || headerText.StartsWith("NetImmerse File Format, Version ", StringComparison.OrdinalIgnoreCase);
-        }
+	public static class NifModelLoader
+	{
+		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(string nifPath)
+		{
+			using var stream = File.OpenRead(nifPath);
+			return LoadMeshDefinitions(stream);
+		}
 
-        private static bool IsGamebryoHeader(Stream stream)
-        {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(Stream stream)
+		{
+			if (stream.CanSeek)
+			{
+				stream.Position = 0;
+			}
 
-            if (!stream.CanRead)
-            {
-                throw new InvalidOperationException("The input stream is not readable.");
-            }
+			var nifFile = new NifFile();
+			try
+			{
+				if (nifFile.Load(stream, new NifFileLoadOptions()) != 0)
+				{
+					throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.");
+				}
+			}
+			catch (InvalidDataException)
+			{
+				throw;
+			}
+			catch (Exception ex)
+			{
+				throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.", ex);
+			}
 
-            var startPosition = stream.CanSeek ? stream.Position : 0;
-            try
-            {
-                if (stream.CanSeek)
-                {
-                    stream.Position = startPosition;
-                }
+			return nifFile.GetShapes().Select(shape => ToMeshDefinition(nifFile, shape)).Where(d => d != null).ToList();
+		}
 
-                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
-                var headerBytes = reader.ReadBytes(64);
-                var headerText = Encoding.ASCII.GetString(headerBytes).TrimEnd('\0');
-                return IsGamebryoHeaderText(headerText);
-            }
-            finally
-            {
-                if (stream.CanSeek)
-                {
-                    stream.Position = startPosition;
-                }
-            }
-        }
+		private static NifMeshDefinition ToMeshDefinition(NifFile nifFile, INiShape shape)
+		{
+			var gd = shape.GeometryData;
+			var vertices = gd?.Vertices ?? (shape as BSTriShape)?.VertexPositions;
+			var normals = gd?.Normals ?? (shape as BSTriShape)?.Normals;
+			var uvs = gd?.UVSets ?? (shape as BSTriShape)?.UVs;
+			if (vertices == null || vertices.Count == 0)
+			{
+				return null;
+			}
 
-        public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(string nifPath)
-        {
-            if (string.IsNullOrWhiteSpace(nifPath))
-            {
-                throw new ArgumentException("NIF path is required.", nameof(nifPath));
-            }
+			var definition = new NifMeshDefinition
+			{
+				Name = string.IsNullOrWhiteSpace(shape.Name.String) ? shape.GetType().Name : shape.Name.String
+			};
+			definition.Vertices.AddRange(vertices.Select(v => new Vector3(v.X, v.Y, v.Z)));
+			if (normals != null)
+			{
+				definition.Normals.AddRange(normals.Select(n => new Vector3(n.X, n.Y, n.Z)));
+			}
 
-            using var stream = File.OpenRead(nifPath);
-            return LoadMeshDefinitions(stream);
-        }
+			if (uvs != null)
+			{
+				definition.Uvs.AddRange(uvs.Select(u => new Vector2(u.U, u.V)));
+			}
 
-        public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(Stream stream)
-        {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
+			if (shape.Triangles != null)
+			{
+				definition.Indices.AddRange(shape.Triangles.SelectMany(t => new[] { (int)t.V1, (int)t.V2, (int)t.V3 }));
+			}
 
-            if (!stream.CanRead)
-            {
-                throw new InvalidOperationException("The input stream is not readable.");
-            }
+			definition.Textures.AddRange(GetTexturePaths(nifFile, shape));
 
-            var startPosition = stream.CanSeek ? stream.Position : 0;
-            try
-            {
-                using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
-                if (stream.CanSeek)
-                {
-                    stream.Position = startPosition;
-                }
+			return definition;
+		}
 
-                var headerBytes = reader.ReadBytes(64);
-                var headerText = Encoding.ASCII.GetString(headerBytes).TrimEnd('\0');
-                if (IsGamebryoHeaderText(headerText))
-                {
-                    if (stream.CanSeek)
-                    {
-                        stream.Position = startPosition;
-                    }
+		private static IEnumerable<string> GetTexturePaths(NifFile nifFile, INiShape shape)
+		{
+			var shader = nifFile.GetShader(shape);
+			var textureSetRef = shader?.TextureSetRef;
+			if (shader?.HasTextureSet != true || textureSetRef == null || textureSetRef.IsEmpty())
+			{
+				return Enumerable.Empty<string>();
+			}
 
-                    return LoadGamebryoMeshDefinitions(stream);
-                }
+			if (nifFile.GetBlock(textureSetRef) is not BSShaderTextureSet textureSet)
+			{
+				return Enumerable.Empty<string>();
+			}
 
-                if (stream.CanSeek)
-                {
-                    stream.Position = startPosition;
-                }
+			return textureSet.Textures
+				.Select(texture => texture.Content)
+				.Where(path => !string.IsNullOrWhiteSpace(path));
+		}
 
-                var magic = reader.ReadBytes(4);
-                if (magic.SequenceEqual(new byte[] { (byte)'N', (byte)'I', (byte)'F', 0 }))
-                {
-                    var meshCount = reader.ReadInt32();
-                    var meshes = new List<NifMeshDefinition>(meshCount);
+		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, string nifPath)
+		{
+			using var stream = File.OpenRead(nifPath);
+			return LoadDrModel(graphicsDevice, stream, Path.GetFileNameWithoutExtension(nifPath));
+		}
 
-                    for (var i = 0; i < meshCount; i++)
-                    {
-                        var definition = new NifMeshDefinition
-                        {
-                            Name = reader.ReadString()
-                        };
+		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName)
+		{
+			var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
+			root.Children = LoadMeshDefinitions(nifStream).Select(definition =>
+			{
+				var vertices = new VertexPositionNormalTexture[definition.Vertices.Count];
+				for (var i = 0; i < definition.Vertices.Count; i++)
+				{
+					vertices[i] = new VertexPositionNormalTexture(
+						definition.Vertices[i],
+						definition.Normals.Count > i ? definition.Normals[i] : Vector3.Up,
+						definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero);
+				}
 
-                        var vertexCount = reader.ReadInt32();
-                        for (var v = 0; v < vertexCount; v++)
-                        {
-                            definition.Vertices.Add(new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()));
-                        }
+				var mesh = new DrMesh { Name = definition.Name };
+				mesh.MeshParts.Add(new DrMeshPart(graphicsDevice, vertices, definition.Indices.ToArray()));
+				mesh.Tag = definition.Textures;
+				return new DrModelBone(definition.Name, mesh);
+			}).ToArray();
 
-                        var normalCount = reader.ReadInt32();
-                        for (var n = 0; n < normalCount; n++)
-                        {
-                            definition.Normals.Add(new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()));
-                        }
-
-                        var uvCount = reader.ReadInt32();
-                        for (var u = 0; u < uvCount; u++)
-                        {
-                            definition.Uvs.Add(new Vector2(reader.ReadSingle(), reader.ReadSingle()));
-                        }
-
-                        var indexCount = reader.ReadInt32();
-                        for (var t = 0; t < indexCount; t++)
-                        {
-                            definition.Indices.Add(reader.ReadInt32());
-                        }
-
-                        meshes.Add(definition);
-                    }
-
-                    return meshes;
-                }
-
-                throw new InvalidDataException("The file is not a valid NIF stream in the supported subset format.");
-            }
-            finally
-            {
-                if (stream.CanSeek)
-                {
-                    stream.Position = startPosition;
-                }
-            }
-        }
-
-        private static IReadOnlyList<NifMeshDefinition> LoadGamebryoMeshDefinitions(Stream stream)
-        {
-            if (stream == null)
-            {
-                throw new ArgumentNullException(nameof(stream));
-            }
-
-            if (!stream.CanRead)
-            {
-                throw new InvalidOperationException("The input stream is not readable.");
-            }
-
-            if (stream.CanSeek)
-            {
-                stream.Position = 0;
-            }
-
-            var nifFile = new NifFile();
-            var loadResult = nifFile.Load(stream, new NifFileLoadOptions());
-            if (loadResult != 0)
-            {
-                throw new InvalidDataException($"The Gamebryo NIF stream could not be loaded by Nifly (result {loadResult}).");
-            }
-
-            var definitions = new List<NifMeshDefinition>();
-            foreach (var shape in nifFile.GetShapes())
-            {
-                if (shape == null)
-                {
-                    continue;
-                }
-
-                var type = shape.GetType();
-                var positionProperty = type.GetProperty("VertexPositions");
-                var triangleProperty = type.GetProperty("Triangles");
-                var normalProperty = type.GetProperty("Normals");
-                var uvProperty = type.GetProperty("UVs");
-
-                var vertices = positionProperty?.GetValue(shape) as IEnumerable<System.Numerics.Vector3>;
-                if (vertices == null)
-                {
-                    continue;
-                }
-
-                var definition = new NifMeshDefinition
-                {
-                    Name = type.GetProperty("Name")?.GetValue(shape) as string ?? type.Name
-                };
-
-                foreach (var vertex in vertices)
-                {
-                    definition.Vertices.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
-                }
-
-                var normals = normalProperty?.GetValue(shape) as IEnumerable<System.Numerics.Vector3>;
-                if (normals != null)
-                {
-                    foreach (var normal in normals)
-                    {
-                        definition.Normals.Add(new Vector3(normal.X, normal.Y, normal.Z));
-                    }
-                }
-
-                var uvs = uvProperty?.GetValue(shape) as IEnumerable;
-                if (uvs != null)
-                {
-                    foreach (var uv in uvs)
-                    {
-                        var uValue = (float)uv.GetType().GetProperty("U")!.GetValue(uv)!;
-                        var vValue = (float)uv.GetType().GetProperty("V")!.GetValue(uv)!;
-                        definition.Uvs.Add(new Vector2(uValue, vValue));
-                    }
-                }
-
-                var triangles = triangleProperty?.GetValue(shape) as IEnumerable;
-                if (triangles != null)
-                {
-                    foreach (var triangle in triangles)
-                    {
-                        var v1 = Convert.ToInt32(triangle.GetType().GetProperty("V1")!.GetValue(triangle));
-                        var v2 = Convert.ToInt32(triangle.GetType().GetProperty("V2")!.GetValue(triangle));
-                        var v3 = Convert.ToInt32(triangle.GetType().GetProperty("V3")!.GetValue(triangle));
-
-                        definition.Indices.Add(v1);
-                        definition.Indices.Add(v2);
-                        definition.Indices.Add(v3);
-                    }
-                }
-
-                definitions.Add(definition);
-            }
-
-            return definitions;
-        }
-
-        public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, string nifPath)
-        {
-            using var stream = File.OpenRead(nifPath);
-            return LoadDrModel(graphicsDevice, stream, Path.GetFileNameWithoutExtension(nifPath));
-        }
-
-        public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName)
-        {
-            if (graphicsDevice == null)
-            {
-                throw new ArgumentNullException(nameof(graphicsDevice));
-            }
-
-            if (nifStream == null)
-            {
-                throw new ArgumentNullException(nameof(nifStream));
-            }
-
-            var definitions = LoadMeshDefinitions(nifStream);
-            var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
-
-            if (definitions.Count == 0)
-            {
-                if (IsGamebryoHeader(nifStream))
-                {
-                    throw new NotSupportedException("This is a real Gamebryo NIF. The mesh parser is not implemented yet, so the file cannot be loaded into DrModel.");
-                }
-
-                return new DrModel(root);
-            }
-
-            var children = new List<DrModelBone>(definitions.Count);
-
-            foreach (var definition in definitions)
-            {
-                var mesh = new DrMesh { Name = definition.Name };
-                var vertexData = new VertexPositionNormalTexture[definition.Vertices.Count];
-
-                for (var i = 0; i < definition.Vertices.Count; i++)
-                {
-                    var position = definition.Vertices[i];
-                    var normal = definition.Normals.Count > i ? definition.Normals[i] : Vector3.Up;
-                    var uv = definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero;
-                    vertexData[i] = new VertexPositionNormalTexture(position, normal, uv);
-                }
-
-                var indices = definition.Indices.Count > 0 ? definition.Indices.ToArray() : Array.Empty<int>();
-                mesh.MeshParts.Add(new DrMeshPart(graphicsDevice, vertexData, indices));
-                children.Add(new DrModelBone(definition.Name, mesh));
-            }
-
-            root.Children = children.ToArray();
-            return new DrModel(root);
-        }
-    }
+			return new DrModel(root);
+		}
+	}
 }

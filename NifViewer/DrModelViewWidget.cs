@@ -73,11 +73,10 @@ namespace OpenSkyrim.NifViewer
 
 				for (var partIndex = 0; partIndex < mesh.MeshParts.Count; ++partIndex)
 				{
-					var texturePath = ResolveTexturePath(mesh.Name);
 					var material = new UnlitMaterial
 					{
 						DiffuseColor = Color.White,
-						Texture = TryLoadTexture(texturePath)
+						Texture = TryLoadTexture(ResolveTexturePath(mesh))
 					};
 
 					materials[meshIndex][partIndex] = material;
@@ -105,9 +104,16 @@ namespace OpenSkyrim.NifViewer
 			}
 		}
 
-		private string ResolveTexturePath(string meshName)
+		private string ResolveTexturePath(DrMesh mesh)
 		{
-			return ResolveArchiveTexturePath(meshName);
+			var textures = mesh.Tag as IReadOnlyList<string>;
+			var texturePath = textures?.FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+			if (!string.IsNullOrWhiteSpace(texturePath))
+			{
+				return texturePath.Replace('\\', '/');
+			}
+
+			return ResolveArchiveTexturePath(mesh.Name);
 		}
 
 		private string ResolveArchiveTexturePath(string meshName)

@@ -23,4 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\NifViewer\NifViewer.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Assets\**\*.nif" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
