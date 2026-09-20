@@ -23,6 +23,7 @@ namespace OpenSkyrim.NifViewer
 		private Label _headerLabel;
 		private Label _countLabel;
 		private Label _statusLabel;
+		private SkyrimFileSystem _fileSystem;
 
 		public NifViewerGame(string skyrimFolder)
 		{
@@ -170,6 +171,9 @@ namespace OpenSkyrim.NifViewer
 			{
 				Root = grid
 			};
+
+
+			_fileSystem = new SkyrimFileSystem(_skyrimFolder);
 
 			SkyrimData.Initialize(_skyrimFolder);
 			PopulateArchiveCombo();

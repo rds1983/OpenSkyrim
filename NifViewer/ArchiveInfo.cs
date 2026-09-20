@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Noggog;
@@ -14,8 +13,15 @@ namespace OpenSkyrim.NifViewer
 		private readonly Dictionary<string, IArchiveFile> _fileLookup;
 		private readonly List<string> _filePaths;
 
+		public string ArchivePath { get; }
+
+		public IReadOnlyList<string> Files => _filePaths;
+
+		public int FileCount => _filePaths.Count;
+
 		public ArchiveInfo(string archivePath)
 		{
+			OSK.LogInfo($"Parsing '{archivePath}'");
 			ArchivePath = archivePath ?? throw new ArgumentNullException(nameof(archivePath));
 
 			if (!File.Exists(ArchivePath))
@@ -45,13 +51,10 @@ namespace OpenSkyrim.NifViewer
 			}
 
 			_filePaths.Sort(StringComparer.OrdinalIgnoreCase);
+
+			OSK.LogInfo($"Found {_filePaths.Count} files.");
 		}
 
-		public string ArchivePath { get; }
-
-		public IReadOnlyList<string> Files => _filePaths;
-
-		public int FileCount => _filePaths.Count;
 
 		public bool Contains(string filePath)
 		{
