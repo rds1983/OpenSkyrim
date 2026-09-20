@@ -24,7 +24,7 @@ namespace OpenSkyrim.NifViewer
 		private readonly NursiaModelNode _modelNode = new NursiaModelNode();
 		private readonly Camera _camera = new Camera();
 		private readonly CameraInputController _cameraController;
-		private string _sourcePath;
+		private AssetManager _bsaAssetManager;
 
 		public DrModelViewWidget()
 		{
@@ -45,14 +45,6 @@ namespace OpenSkyrim.NifViewer
 			_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
 			_camera.NearPlane = 0.1f;
 			_camera.FarPlane = 1000f;
-		}
-
-		public string DataDirectory { get; set; }
-
-		public string SourcePath
-		{
-			get => _sourcePath;
-			set => _sourcePath = value;
 		}
 
 		public DrModel Model
@@ -95,44 +87,17 @@ namespace OpenSkyrim.NifViewer
 			return materials;
 		}
 
-		private Texture2D TryLoadTexture(string texturePath)
+		private Texture2D TryLoadTexture(string archiveFilePath)
 		{
-			if (string.IsNullOrWhiteSpace(texturePath))
+			if (string.IsNullOrWhiteSpace(archiveFilePath))
 			{
 				return null;
 			}
 
 			try
 			{
-				if (texturePath.StartsWith("bsa://", StringComparison.OrdinalIgnoreCase))
-				{
-					var parts = texturePath.Substring("bsa://".Length).Split(new[] { "|" }, 2, StringSplitOptions.None);
-					if (parts.Length == 2)
-					{
-						var archivePath = parts[0];
-						var assetName = parts[1].Replace('\\', '/').TrimStart('/');
-						var archiveInfo = SkyrimData.Archives.Values.FirstOrDefault(a => string.Equals(a.ArchivePath, archivePath, StringComparison.OrdinalIgnoreCase));
-						if (archiveInfo != null)
-						{
-							var bsaAssetManager = new AssetManager(archiveInfo.CreateAssetResolver(), DataDirectory ?? string.Empty);
-							return (Texture2D)bsaAssetManager.LoadTexture(MyraEnvironment.GraphicsDevice, assetName);
-						}
-					}
-				}
-
-				var resolvedPath = texturePath;
-				if (!Path.IsPathRooted(resolvedPath))
-				{
-					resolvedPath = Path.Combine(DataDirectory ?? string.Empty, resolvedPath.Replace('/', '\\'));
-				}
-
-				if (!File.Exists(resolvedPath))
-				{
-					return null;
-				}
-
-				var assetManager = AssetManager.CreateFileAssetManager(Path.GetDirectoryName(resolvedPath)!);
-				return (Texture2D)assetManager.LoadTexture(MyraEnvironment.GraphicsDevice, $"@{resolvedPath}");
+				_bsaAssetManager ??= new AssetManager(new BsaAssetResolver(), string.Empty);
+				return (Texture2D)_bsaAssetManager.LoadTexture(MyraEnvironment.GraphicsDevice, archiveFilePath);
 			}
 			catch
 			{
@@ -141,61 +106,12 @@ namespace OpenSkyrim.NifViewer
 		}
 
 		private string ResolveTexturePath(string meshName)
-			{
-			var loosePath = ResolveLooseTexturePath(meshName);
-			if (!string.IsNullOrWhiteSpace(loosePath))
-			{
-				return loosePath;
-			}
-
-			return ResolveArchiveTexturePath(meshName);
-		}
-
-		private string ResolveLooseTexturePath(string meshName)
 		{
-			if (string.IsNullOrWhiteSpace(DataDirectory) || !Directory.Exists(DataDirectory))
-			{
-				return null;
-			}
-
-			var texturesRoot = Path.Combine(DataDirectory, "Textures");
-			if (!Directory.Exists(texturesRoot))
-			{
-				return null;
-			}
-
-			var candidateNames = GetTextureCandidates(meshName);
-			foreach (var candidate in candidateNames)
-			{
-				var matches = Directory.EnumerateFiles(texturesRoot, "*.*", SearchOption.AllDirectories)
-					.Where(file => file.EndsWith(".dds", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-					.Where(file =>
-					{
-						var stem = Path.GetFileNameWithoutExtension(file);
-						return string.Equals(stem, candidate, StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(stem, candidate + "_d", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(stem, candidate + "_diff", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(stem, candidate + "_color", StringComparison.OrdinalIgnoreCase)
-							|| string.Equals(stem, candidate + "_albedo", StringComparison.OrdinalIgnoreCase);
-					})
-					.ToArray();
-
-				if (matches.Length > 0)
-				{
-					return matches[0];
-				}
-			}
-
-			return null;
+			return ResolveArchiveTexturePath(meshName);
 		}
 
 		private string ResolveArchiveTexturePath(string meshName)
 		{
-			if (string.IsNullOrWhiteSpace(DataDirectory) || !Directory.Exists(DataDirectory))
-			{
-				return null;
-			}
-
 			var candidateNames = GetTextureCandidates(meshName);
 			foreach (var archiveInfo in SkyrimData.Archives.Values)
 			{
@@ -217,7 +133,7 @@ namespace OpenSkyrim.NifViewer
 						continue;
 					}
 
-					return $"bsa://{archiveInfo.ArchivePath}|{archiveFilePath.Replace('\\', '/')}";
+					return archiveFilePath.Replace('\\', '/');
 				}
 			}
 
@@ -227,12 +143,6 @@ namespace OpenSkyrim.NifViewer
 		private List<string> GetTextureCandidates(string meshName)
 		{
 			var candidateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-			var sourceStem = Path.GetFileNameWithoutExtension(_sourcePath ?? string.Empty);
-			if (!string.IsNullOrWhiteSpace(sourceStem))
-			{
-				candidateNames.Add(sourceStem);
-				candidateNames.Add(sourceStem.Replace("_nif", string.Empty, StringComparison.OrdinalIgnoreCase));
-			}
 
 			if (!string.IsNullOrWhiteSpace(meshName))
 			{
@@ -248,69 +158,6 @@ namespace OpenSkyrim.NifViewer
 				.Where(n => !string.IsNullOrWhiteSpace(n))
 				.Select(n => n.Trim())
 				.ToList();
-		}
-
-		public static (uint Width, uint Height, uint PixelFormat) ParseDdsHeader(Stream stream)
-		{
-			if (stream == null)
-			{
-				throw new ArgumentNullException(nameof(stream));
-			}
-
-			var originalPosition = stream.CanSeek ? stream.Position : 0L;
-			try
-			{
-				if (stream.CanSeek)
-				{
-					stream.Position = 0;
-				}
-
-				using var reader = new BinaryReader(stream, System.Text.Encoding.ASCII, leaveOpen: true);
-				if (reader.ReadByte() != (byte)'D' || reader.ReadByte() != (byte)'D' || reader.ReadByte() != (byte)'S' || reader.ReadByte() != (byte)' ')
-				{
-					throw new InvalidOperationException("Not a DDS file");
-				}
-
-				var size = reader.ReadUInt32();
-				if (size != 124)
-				{
-					throw new InvalidOperationException($"Unsupported DDS header size: {size}");
-				}
-
-				var height = reader.ReadUInt32();
-				var width = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				for (var i = 0; i < 11; ++i)
-				{
-					_ = reader.ReadUInt32();
-				}
-
-				var pixelFormatSize = reader.ReadUInt32();
-				if (pixelFormatSize != 32)
-				{
-					throw new InvalidOperationException($"Unsupported DDS pixel format size: {pixelFormatSize}");
-				}
-
-				var flags = reader.ReadUInt32();
-				var fourCc = reader.ReadUInt32();
-				var rgbBitCount = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-				_ = reader.ReadUInt32();
-
-				return (width, height, fourCc != 0 ? fourCc : flags + rgbBitCount);
-			}
-			finally
-			{
-				if (stream.CanSeek)
-				{
-					stream.Position = originalPosition;
-				}
-			}
 		}
 
 		public void UpdateCameraInput()

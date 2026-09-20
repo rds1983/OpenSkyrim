@@ -72,30 +72,4 @@ public class NifModelLoaderTests
         Assert.NotEmpty(meshes);
         Assert.True(meshes.Sum(m => m.Vertices.Count) > 0);
     }
-
-    [Fact]
-    public void ParseDdsFromArchive_LoadsRealSkyrimTextureHeader()
-    {
-        var dataFolder = Path.Combine(SkyrimData.DefaultSkyrimFolder, "Data");
-        var bsaPath = Directory.EnumerateFiles(dataFolder, "Skyrim - Textures*.bsa", SearchOption.TopDirectoryOnly)
-            .FirstOrDefault();
-
-        if (string.IsNullOrEmpty(bsaPath))
-        {
-            return;
-        }
-
-        var archive = Archive.CreateReader(GameConstants.SkyrimSE.Release, new FilePath(bsaPath));
-        var ddsFile = archive.Files.FirstOrDefault(f =>
-            string.Equals(Path.GetExtension(f.Path), ".dds", StringComparison.OrdinalIgnoreCase));
-
-        Assert.NotNull(ddsFile);
-
-        using var stream = new MemoryStream(ddsFile!.GetBytes());
-        var info = DrModelViewWidget.ParseDdsHeader(stream);
-
-        Assert.True(info.Width > 0);
-        Assert.True(info.Height > 0);
-        Assert.NotEqual(0u, info.PixelFormat);
-    }
 }

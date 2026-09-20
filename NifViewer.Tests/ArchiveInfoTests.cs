@@ -112,28 +112,6 @@ public class ArchiveInfoTests
     }
 
     [Fact]
-    public void CreateAssetResolver_ResolvesFilesFromArchive()
-    {
-        var bsaPath = GetSampleArchivePath();
-        if (string.IsNullOrEmpty(bsaPath))
-        {
-            return;
-        }
-
-        var archiveInfo = new ArchiveInfo(bsaPath);
-        var archivePath = archiveInfo.Files[0];
-
-        var resolver = archiveInfo.CreateAssetResolver();
-
-        Assert.NotNull(resolver);
-        Assert.True(resolver.Exists(archivePath));
-
-        using var stream = resolver.Open(archivePath);
-        Assert.True(stream.CanRead);
-        Assert.Equal(archiveInfo.Load(archivePath).Length, stream.Length);
-    }
-
-    [Fact]
     public void Load_ThrowsFileNotFoundException_WhenFileIsMissing()
     {
         var bsaPath = GetSampleArchivePath();

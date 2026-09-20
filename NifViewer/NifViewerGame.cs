@@ -98,8 +98,6 @@ namespace OpenSkyrim.NifViewer
 						{
 							using var memoryStream = archiveInfo.Open(archiveEntryPath);
 							var model = NifModelLoader.LoadDrModel(GraphicsDevice, memoryStream, Path.GetFileNameWithoutExtension(archiveEntryPath));
-							_viewer.DataDirectory = _skyrimFolder;
-							_viewer.SourcePath = archiveEntryPath;
 							_viewer.Model = model;
 							_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {archiveEntryPath} ({archivePath})";
 							return;
@@ -109,8 +107,6 @@ namespace OpenSkyrim.NifViewer
 					if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
 					{
 						var model = NifModelLoader.LoadDrModel(GraphicsDevice, path);
-						_viewer.DataDirectory = _skyrimFolder;
-						_viewer.SourcePath = path;
 						_viewer.Model = model;
 						_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
 						return;

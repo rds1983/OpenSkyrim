@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using AssetManagementBase;
 using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Noggog;
@@ -64,11 +63,6 @@ namespace OpenSkyrim.NifViewer
 			return _fileLookup.ContainsKey(NormalizePath(filePath));
 		}
 
-		public IAssetAccessor CreateAssetResolver()
-		{
-			return new BsaAssetResolver(this);
-		}
-
 		public byte[] Load(string filePath)
 		{
 			return GetArchiveFile(filePath).GetBytes();
@@ -98,38 +92,6 @@ namespace OpenSkyrim.NifViewer
 		private static string NormalizePath(string path)
 		{
 			return path.Replace('\\', '/').TrimStart('/');
-		}
-
-		private sealed class BsaAssetResolver : IAssetAccessor
-		{
-			private readonly ArchiveInfo _owner;
-
-			public BsaAssetResolver(ArchiveInfo owner)
-			{
-				_owner = owner ?? throw new ArgumentNullException(nameof(owner));
-			}
-
-			public string Name => "BSA";
-
-			public bool Exists(string path)
-			{
-				if (string.IsNullOrWhiteSpace(path))
-				{
-					return false;
-				}
-
-				return _owner.Contains(path);
-			}
-
-			public Stream Open(string path)
-			{
-				if (string.IsNullOrWhiteSpace(path))
-				{
-					throw new FileNotFoundException("Asset path is empty.", path);
-				}
-
-				return _owner.Open(path);
-			}
 		}
 	}
 }
