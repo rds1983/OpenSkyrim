@@ -14,6 +14,7 @@ The engine is built on the following open-source libraries:
 | DigitalRiseModel   | 3D model loading                                     | https://github.com/rds1983/DigitalRiseModel               |
 | Nursia             | 3D scene rendering and navigation                    | https://github.com/rds1983/Nursia                         |
 | Mutagen            | Parsing, creating, and editing Bethesda plugin files (*.esp / *.esm) | https://github.com/Mutagen-Modding/Mutagen
+| Nifly              | Parsing Gamebryo/NetImmerse `.nif` model files and extracting mesh + texture data | https://github.com/ousnius/NiflySharp |
 
 ## Repository Layout
 
@@ -25,9 +26,9 @@ The engine is built on the following open-source libraries:
 
 For the project’s findings on working with Bethesda data files and Mutagen-based archive scanning, see [MUTAGEN_NOTES.md](MUTAGEN_NOTES.md).
 
-## NIF Reference
+## Nifly Notes
 
-The project used code and format knowledge from the [nifscope / NifSkope repository](https://github.com/niftools/nifskope) to implement its own NIF parser for Gamebryo assets and mesh extraction.
+For the project’s findings on loading `.nif` files and extracting mesh and texture data with Nifly, see [NIFLY_NOTES.md](NIFLY_NOTES.md).
 
 ## Roadmap
 

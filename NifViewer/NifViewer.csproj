@@ -26,7 +26,7 @@
 
   <ItemGroup>
     <PackageReference Include="Mutagen.Bethesda.Core" Version="0.52.0" />
-    <PackageReference Include="Nifly" Version="0.1.0" />
+    <PackageReference Include="Nifly" Version="1.1.0" />
   </ItemGroup>
 
 </Project>

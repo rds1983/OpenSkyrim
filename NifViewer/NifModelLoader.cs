@@ -7,7 +7,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using NiflySharp;
 using NiflySharp.Blocks;
-using NiflySharp.Structs;
 
 namespace OpenSkyrim.NifViewer
 {
