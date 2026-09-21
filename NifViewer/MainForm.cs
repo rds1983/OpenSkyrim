@@ -29,6 +29,8 @@ public class MainForm : Grid
 	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
 	private volatile ListView _pendingListView;
+	private bool _filterPopulatePending;
+	private float _filterPopulateDelay;
 
 	public MainForm(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem)
 	{
@@ -68,14 +70,18 @@ public class MainForm : Grid
 		_sourceCombo.Widgets.Add(new Label { Text = "Locations" });
 		_sourceCombo.Widgets.Add(new Label { Text = "Models" });
 		_sourceCombo.SelectedIndex = LocationsSource;
-		_sourceCombo.SelectedIndexChanged += (s, a) => QueuePopulateListView();
+		_sourceCombo.SelectedIndexChanged += (s, a) =>
+		{
+			_filterPopulatePending = false;
+			QueuePopulateListView();
+		};
 
 		_filterTextBox = new TextBox
 		{
 			HorizontalAlignment = HorizontalAlignment.Stretch
 		};
 
-		_filterTextBox.TextChanged += (s, a) => QueuePopulateListView();
+		_filterTextBox.TextChanged += (s, a) => QueuePopulateListViewDebounced();
 
 		_viewer = new DrModelViewWidget
 		{
@@ -116,6 +122,7 @@ public class MainForm : Grid
 
 	public void Update(float elapsedSeconds)
 	{
+		ApplyFilterDebounce(elapsedSeconds);
 		ApplyPendingListView();
 		_viewer.UpdateCameraInput(elapsedSeconds);
 	}
@@ -202,6 +209,30 @@ public class MainForm : Grid
 			OSK.LogInfo($"Found {_skyrimWorld.Locations.Count} location(s).");
 			return _skyrimWorld;
 		}
+	}
+
+	private void QueuePopulateListViewDebounced(float delaySeconds = 1f)
+	{
+		_filterPopulatePending = true;
+		_filterPopulateDelay = delaySeconds;
+		_statusLabel.Text = "Populating list...";
+	}
+
+	private void ApplyFilterDebounce(float elapsedSeconds)
+	{
+		if (!_filterPopulatePending)
+		{
+			return;
+		}
+
+		_filterPopulateDelay -= elapsedSeconds;
+		if (_filterPopulateDelay > 0f)
+		{
+			return;
+		}
+
+		_filterPopulatePending = false;
+		QueuePopulateListView();
 	}
 
 	private void QueuePopulateListView()

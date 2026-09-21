@@ -155,3 +155,26 @@ Real `Skyrim.esm` counts: 590 interior cells, 16942 exterior cells.
 - `SkyrimFileSystem` now also falls back to loose files under `Data` (not just BSA entries)
   and exposes `FileExists` / `GetPluginPath`.
 - `MainForm` has a source combo (`Locations` default, `Models`) above the filter box.
+
+## NIF node transforms (placement fix)
+
+NiflySharp `GetShapes()` returns vertices **in the shape's own local space**, ignoring the
+transform of the shape itself and of every ancestor `NiNode`. For real Skyrim statics this
+is frequently non-identity (observed on `Furniture\Common\CommonBedDouble01.nif`: mattress
+pieces at translation `(-22.3, -0.24, 33.7)`, a bedpost piece `Object08` at `(32, -62.2,
+42.2)` with a ~5 deg rotation). Ignoring them scrambles every multi-part model, which is
+why furniture like beds appeared misplaced.
+
+Fix in `NifModelLoader`:
+- walk the parent chain from each shape up to the root via `NifFile.GetParentNode(INiObject)`,
+- compose `root -> ... -> shape` using the public `NiAVObject.Translation` (`Vector3`),
+  `Rotation` (`NiflySharp.Structs.Matrix33`) and `Scale` (`float`) properties,
+- bake the accumulated XNA matrix into vertices (`Vector3.Transform`) and normals
+  (`Vector3.TransformNormal`).
+
+NIF rotation matrices are stored column-major (nif.xml field order
+`m11, m21, m31, m12, m22, m32, m13, m23, m33`); the field names follow the logical
+(row, column), so the XNA row-vector matrix is the transpose of the natural reading.
+
+Verified numerically: after baking, `CommonBed01` frame spans `Z[0,74]`, mattress pieces
+`Z[26,40]`, side rails at the board edges - the bed assembles on the `Z=0` plane.

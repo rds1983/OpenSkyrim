@@ -75,16 +75,18 @@ namespace OpenSkyrim.NifViewer
 				Name = string.IsNullOrWhiteSpace(shape.Name.String) ? shape.GetType().Name : shape.Name.String
 			};
 
+			var worldTransform = GetShapeWorldTransform(nifFile, shape);
+
 			foreach (var vertex in vertices)
 			{
-				definition.Vertices.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
+				definition.Vertices.Add(Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), worldTransform));
 			}
 
 			if (normals != null)
 			{
 				foreach (var normal in normals)
 				{
-					definition.Normals.Add(new Vector3(normal.X, normal.Y, normal.Z));
+					definition.Normals.Add(Vector3.TransformNormal(new Vector3(normal.X, normal.Y, normal.Z), worldTransform));
 				}
 			}
 
@@ -113,6 +115,51 @@ namespace OpenSkyrim.NifViewer
 			}
 
 			return definition;
+		}
+
+		/// <summary>Accumulates the transform from the NIF root down to the given shape (NiNode chain).</summary>
+		private static Matrix GetShapeWorldTransform(NifFile nifFile, INiShape shape)
+		{
+			var chain = new List<INiObject>();
+			INiObject current = shape;
+			while (current != null)
+			{
+				chain.Add(current);
+				current = nifFile.GetParentNode(current);
+			}
+
+			var result = Matrix.Identity;
+			for (var i = chain.Count - 1; i >= 0; --i)
+			{
+				result *= GetLocalTransform(chain[i]);
+			}
+
+			return result;
+		}
+
+		private static Matrix GetLocalTransform(INiObject obj)
+		{
+			if (obj is not NiAVObject node)
+			{
+				return Matrix.Identity;
+			}
+
+			var translation = node.Translation;
+			return Matrix.CreateScale(node.Scale)
+				* FromMatrix33(node.Rotation)
+				* Matrix.CreateTranslation(translation.X, translation.Y, translation.Z);
+		}
+
+		private static Matrix FromMatrix33(NiflySharp.Structs.Matrix33 rotation)
+		{
+			// NIF rotation matrices are stored column-major (nif.xml field order:
+			// m11, m21, m31, m12, m22, m32, m13, m23, m33); the names follow the
+			// logical (row, column), so the XNA (row-vector) matrix is the transpose.
+			return new Matrix(
+				rotation.M11, rotation.M21, rotation.M31, 0,
+				rotation.M12, rotation.M22, rotation.M32, 0,
+				rotation.M13, rotation.M23, rotation.M33, 0,
+				0, 0, 0, 1);
 		}
 
 		private static List<string> GetTexturePaths(NifFile nifFile, INiShape shape)
