@@ -68,7 +68,6 @@ public class SkyrimFileSystem
 
 	private void ParseArchives()
 	{
-		var archives = new List<ArchiveInfo>();
 		foreach (var archivePath in Directory.EnumerateFiles(DataPath, "*.bsa", SearchOption.AllDirectories))
 		{
 			OSK.LogInfo($"Parsing '{archivePath}'...");

@@ -1,37 +1,26 @@
 using System;
-using System.IO;
 
-namespace OpenSkyrim.NifViewer
+namespace OpenSkyrim.NifViewer;
+
+class Program
 {
-	class Program
+	static int Main(string[] args)
 	{
-		static int Main(string[] args)
+		try
 		{
-			try
+			Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "D3D11");
+
+			using (var game = new NifViewerGame(args[0]))
 			{
-				var skyrimFolder = args.Length > 0 ? args[0] : SkyrimData.DefaultSkyrimFolder;
-				var dataFolder = SkyrimData.ResolveSkyrimDataFolder(skyrimFolder);
-				if (!Directory.Exists(dataFolder))
-				{
-					Console.WriteLine($"Skyrim data folder '{dataFolder}' does not exist.");
-					Console.WriteLine($"Expected a Skyrim install under '{SkyrimData.DefaultSkyrimFolder}' or pass a path to the game root.");
-					return 1;
-				}
-
-				Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "D3D11");
-
-				using (var game = new NifViewerGame(dataFolder))
-				{
-					game.Run();
-				}
-
-				return 0;
+				game.Run();
 			}
-			catch (Exception ex)
-			{
-				Console.WriteLine(ex.ToString());
-				return 1;
-			}
+
+			return 0;
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine(ex.ToString());
+			return 1;
 		}
 	}
 }

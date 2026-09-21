@@ -110,12 +110,6 @@ namespace OpenSkyrim.NifViewer
 				.Where(path => !string.IsNullOrWhiteSpace(path));
 		}
 
-		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, string nifPath)
-		{
-			using var stream = File.OpenRead(nifPath);
-			return LoadDrModel(graphicsDevice, stream, Path.GetFileNameWithoutExtension(nifPath));
-		}
-
 		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName)
 		{
 			var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
