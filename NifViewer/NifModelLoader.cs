@@ -20,31 +20,19 @@ namespace OpenSkyrim.NifViewer
 		public List<string> Textures { get; } = new();
 	}
 
+	public sealed class NifTreeNode
+	{
+		public string Name { get; init; } = string.Empty;
+		public Matrix Pose { get; init; } = Matrix.Identity;
+		public NifMeshDefinition MeshData { get; init; }
+		public IReadOnlyList<NifTreeNode> Children { get; init; } = Array.Empty<NifTreeNode>();
+	}
+
 	public static class NifModelLoader
 	{
 		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(Stream stream)
 		{
-			if (stream.CanSeek)
-			{
-				stream.Position = 0;
-			}
-
-			var nifFile = new NifFile();
-			try
-			{
-				if (nifFile.Load(stream, new NifFileLoadOptions()) != 0)
-				{
-					throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.");
-				}
-			}
-			catch (InvalidDataException)
-			{
-				throw;
-			}
-			catch (Exception ex)
-			{
-				throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.", ex);
-			}
+			var nifFile = LoadNif(stream);
 
 			var definitions = new List<NifMeshDefinition>();
 			foreach (var shape in nifFile.GetShapes())
@@ -72,21 +60,19 @@ namespace OpenSkyrim.NifViewer
 
 			var definition = new NifMeshDefinition
 			{
-				Name = string.IsNullOrWhiteSpace(shape.Name.String) ? shape.GetType().Name : shape.Name.String
+				Name = GetNodeName(shape)
 			};
-
-			var worldTransform = GetShapeWorldTransform(nifFile, shape);
 
 			foreach (var vertex in vertices)
 			{
-				definition.Vertices.Add(Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), worldTransform));
+				definition.Vertices.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
 			}
 
 			if (normals != null)
 			{
 				foreach (var normal in normals)
 				{
-					definition.Normals.Add(Vector3.TransformNormal(new Vector3(normal.X, normal.Y, normal.Z), worldTransform));
+					definition.Normals.Add(new Vector3(normal.X, normal.Y, normal.Z));
 				}
 			}
 
@@ -102,9 +88,9 @@ namespace OpenSkyrim.NifViewer
 			{
 				foreach (var triangle in shape.Triangles)
 				{
-					definition.Indices.Add((int)triangle.V1);
-					definition.Indices.Add((int)triangle.V2);
-					definition.Indices.Add((int)triangle.V3);
+					definition.Indices.Add(triangle.V1);
+					definition.Indices.Add(triangle.V2);
+					definition.Indices.Add(triangle.V3);
 				}
 			}
 
@@ -117,24 +103,68 @@ namespace OpenSkyrim.NifViewer
 			return definition;
 		}
 
-		/// <summary>Accumulates the transform from the NIF root down to the given shape (NiNode chain).</summary>
-		private static Matrix GetShapeWorldTransform(NifFile nifFile, INiShape shape)
+		private static NifFile LoadNif(Stream stream)
 		{
-			var chain = new List<INiObject>();
-			INiObject current = shape;
-			while (current != null)
+			if (stream.CanSeek)
 			{
-				chain.Add(current);
-				current = nifFile.GetParentNode(current);
+				stream.Position = 0;
 			}
 
-			var result = Matrix.Identity;
-			for (var i = chain.Count - 1; i >= 0; --i)
+			var nifFile = new NifFile();
+			if (nifFile.Load(stream, new NifFileLoadOptions()) != 0)
 			{
-				result *= GetLocalTransform(chain[i]);
+				throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.");
 			}
 
-			return result;
+			return nifFile;
+		}
+
+		/// <summary>
+		/// Parses the NIF transform hierarchy (root NiNodes and their descendants). Vertices stay in
+		/// shape-local space; each node carries its own local transform in <see cref="NifTreeNode.Pose"/>.
+		/// </summary>
+		public static IReadOnlyList<NifTreeNode> ParseTree(Stream stream)
+		{
+			var nifFile = LoadNif(stream);
+			var roots = new List<NifTreeNode>();
+			foreach (var rootNode in nifFile.GetRootNodes())
+			{
+				roots.Add(ParseNode(nifFile, rootNode));
+			}
+
+			return roots;
+		}
+
+		private static NifTreeNode ParseNode(NifFile nifFile, INiObject node)
+		{
+			var mesh = node as INiShape == null ? null : ToMeshDefinition(nifFile, (INiShape)node);
+
+			var children = new List<NifTreeNode>();
+			if (node is NiNode niNode)
+			{
+				for (var i = 0; i < niNode.Children.Count; i++)
+				{
+					var child = nifFile.GetBlock(niNode.Children.GetBlockRef(i));
+					if (child != null)
+					{
+						children.Add(ParseNode(nifFile, child));
+					}
+				}
+			}
+
+			return new NifTreeNode
+			{
+				Name = GetNodeName(node),
+				Pose = GetLocalTransform(node),
+				MeshData = mesh,
+				Children = children
+			};
+		}
+
+		private static string GetNodeName(INiObject node)
+		{
+			var name = (node as NiObjectNET)?.Name?.String;
+			return string.IsNullOrWhiteSpace(name) ? node.GetType().Name : name;
 		}
 
 		private static Matrix GetLocalTransform(INiObject obj)
@@ -191,16 +221,84 @@ namespace OpenSkyrim.NifViewer
 		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName, SkyrimFileSystem fileSystem)
 		{
 			var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
-			var definitions = LoadMeshDefinitions(nifStream);
-			var children = new List<DrModelBone>(definitions.Count);
+			var nodes = ParseTree(nifStream);
+			var children = new List<DrModelBone>(nodes.Count);
 
-			foreach (var definition in definitions)
+			foreach (var node in nodes)
 			{
-				children.Add(new DrModelBone(definition.Name, CreateMesh(graphicsDevice, fileSystem, definition)));
+				children.Add(BuildNode(graphicsDevice, fileSystem, node));
 			}
 
 			root.Children = children.ToArray();
 			return new DrModel(root);
+		}
+
+		/// <summary>
+		/// Builds a <see cref="DrModelBone"/> (and its descendants) for a parsed NIF node, applying the
+		/// node's local transform as the default pose so the hierarchy places the meshes.
+		/// </summary>
+		public static DrModelBone BuildNode(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, NifTreeNode node)
+		{
+			var mesh = node.MeshData == null ? null : CreateMesh(graphicsDevice, fileSystem, node.MeshData);
+			var bone = new DrModelBone(node.Name, mesh)
+			{
+				DefaultPose = new SrtTransform(node.Pose)
+			};
+
+			var children = new List<DrModelBone>(node.Children.Count);
+			foreach (var child in node.Children)
+			{
+				children.Add(BuildNode(graphicsDevice, fileSystem, child));
+			}
+
+			bone.Children = children.ToArray();
+			return bone;
+		}
+
+		/// <summary>
+		/// Creates a copy of a bone hierarchy (e.g. a cached model's root) so it can be re-attached under a
+		/// different parent. The cloned meshes reuse the source VertexBuffer/IndexBuffer objects, so no GPU
+		/// geometry is re-uploaded. The cache itself is never mutated.
+		/// </summary>
+		public static DrModelBone CloneHierarchy(DrModelBone source)
+		{
+			if (source == null)
+			{
+				throw new ArgumentNullException(nameof(source));
+			}
+
+			DrMesh clonedMesh = null;
+			if (source.Mesh != null)
+			{
+				clonedMesh = new DrMesh
+				{
+					Name = source.Mesh.Name,
+					Tag = source.Mesh.Tag
+				};
+				foreach (var part in source.Mesh.MeshParts)
+				{
+					clonedMesh.MeshParts.Add(part.Clone());
+				}
+			}
+
+			var bone = new DrModelBone(source.Name, clonedMesh)
+			{
+				DefaultPose = source.DefaultPose,
+				Tag = source.Tag
+			};
+
+			if (source.Children != null)
+			{
+				var children = new DrModelBone[source.Children.Length];
+				for (var i = 0; i < children.Length; ++i)
+				{
+					children[i] = CloneHierarchy(source.Children[i]);
+				}
+
+				bone.Children = children;
+			}
+
+			return bone;
 		}
 
 		public static DrMesh CreateMesh(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, NifMeshDefinition definition)

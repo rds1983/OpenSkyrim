@@ -25,7 +25,7 @@ public class DrModelViewWidget : Widget
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
 	private readonly Scene _sceneAxises;
-	private readonly NursiaModelNode _modelNode = new NursiaModelNode();
+	private SceneNode _sceneNode;
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
 	private MeshNode _gridMesh;
@@ -92,7 +92,6 @@ public class DrModelViewWidget : Widget
 		root.Children.Add(new DirectLight { Rotation = new Vector3(45, 45, 0), CastsShadow = false });
 		root.Children.Add(new DirectLight { Rotation = new Vector3(225, 45, 0), CastsShadow = false });
 		root.Children.Add(GridMesh);
-		root.Children.Add(_modelNode);
 
 		_scene.Root = root;
 		_scene.Camera = _camera;
@@ -106,13 +105,23 @@ public class DrModelViewWidget : Widget
 		};
 	}
 
-	public DrModel Model
+	public SceneNode Node
 	{
-		get => _modelNode.Model;
+		get => _sceneNode;
 		set
 		{
-			_modelNode.Model = value;
-			_modelNode.Materials = BuildMaterials(value);
+			if (_sceneNode != null)
+			{
+				_scene.Root.Children.Remove(_sceneNode);
+			}
+
+			_sceneNode = value;
+
+			if (_sceneNode != null)
+			{
+				_scene.Root.Children.Add(_sceneNode);
+			}
+
 			ResetCamera();
 		}
 	}
@@ -163,7 +172,7 @@ public class DrModelViewWidget : Widget
 
 	public void UpdateCameraInput(float elapsedSeconds)
 	{
-		if (_modelNode.Model != null)
+		if (_sceneNode != null)
 		{
 			_cameraController.Update(elapsedSeconds);
 		}
@@ -183,7 +192,7 @@ public class DrModelViewWidget : Widget
 
 		var bounds = context.ToGlobal(ActualBounds);
 		device.Viewport = new Viewport(bounds.X, bounds.Y, bounds.Width, bounds.Height);
-		if (_modelNode.Model != null)
+		if (_sceneNode != null)
 		{
 			_scene.Render(_renderer, _camera);
 		}
@@ -207,14 +216,14 @@ public class DrModelViewWidget : Widget
 
 	private void ResetCamera()
 	{
-		if (_modelNode.Model == null)
+		if (_sceneNode == null)
 		{
 			_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
 			_cameraController.FocusPoint = null;
 			return;
 		}
 
-		var boundingBox = _modelNode.BoundingBox;
+		var boundingBox = _sceneNode.FullBoundingBox;
 		if (!boundingBox.HasValue)
 		{
 			return;

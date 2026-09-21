@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Nursia.SceneGraph;
 using System;
 using System.IO;
 using System.Threading;
@@ -36,7 +37,7 @@ public class MainForm : Grid
 	{
 		_graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-		_sceneBuilder = new SkyrimSceneBuilder(_graphicsDevice, _fileSystem);
+		_sceneBuilder = new SkyrimSceneBuilder(_fileSystem);
 
 		RowSpacing = 4;
 		ColumnSpacing = 8;
@@ -155,12 +156,15 @@ public class MainForm : Grid
 		try
 		{
 			var model = _fileSystem.LoadModel(_graphicsDevice, path);
-			_viewer.Model = model;
+			_viewer.Node = new NursiaModelNode
+			{
+				Model = model
+			};
 			_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
 		}
 		catch (Exception ex)
 		{
-			_viewer.Model = null;
+			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}
 	}
@@ -177,13 +181,13 @@ public class MainForm : Grid
 				return;
 			}
 
-			var model = _sceneBuilder.Build(world.LinkCache, location.Cell);
-			_viewer.Model = model;
+			var scene = _sceneBuilder.Build(world.LinkCache, location.Cell);
+			_viewer.Node = scene;
 			_statusLabel.Text = $"Loaded {_sceneBuilder.PlacedObjectCount} object(s) ({_sceneBuilder.LoadedModelCount} mesh group(s)) from {location.Name}";
 		}
 		catch (Exception ex)
 		{
-			_viewer.Model = null;
+			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}
 	}

@@ -165,16 +165,28 @@ pieces at translation `(-22.3, -0.24, 33.7)`, a bedpost piece `Object08` at `(32
 42.2)` with a ~5 deg rotation). Ignoring them scrambles every multi-part model, which is
 why furniture like beds appeared misplaced.
 
-Fix in `NifModelLoader`:
-- walk the parent chain from each shape up to the root via `NifFile.GetParentNode(INiObject)`,
-- compose `root -> ... -> shape` using the public `NiAVObject.Translation` (`Vector3`),
-  `Rotation` (`NiflySharp.Structs.Matrix33`) and `Scale` (`float`) properties,
-- bake the accumulated XNA matrix into vertices (`Vector3.Transform`) and normals
-  (`Vector3.TransformNormal`).
+Fix in `NifModelLoader` (node-hierarchy approach):
+- vertices are loaded **as-is** (shape-local space), no baking,
+- `ParseTree(Stream)` walks the NIF tree from `NifFile.GetRootNodes()`, descending into
+  `NiNode.Children` (enumerate by index via `Count` / `GetBlockRef(i)`, resolve with
+  `GetBlock(int)`),
+- each parsed node becomes a `NifTreeNode` carrying its **own local transform**
+  (`NiAVObject.Translation` / `Rotation` / `Scale`) plus optional shape mesh data,
+- `BuildNode` converts the tree to `DrModelBone`s whose `DefaultPose` is the node's local
+  transform; the DrModel skeleton applies the full chain, so mesh world positions are
+  correct without touching vertices.
 
 NIF rotation matrices are stored column-major (nif.xml field order
 `m11, m21, m31, m12, m22, m32, m13, m23, m33`); the field names follow the logical
 (row, column), so the XNA row-vector matrix is the transpose of the natural reading.
 
-Verified numerically: after baking, `CommonBed01` frame spans `Z[0,74]`, mattress pieces
-`Z[26,40]`, side rails at the board edges - the bed assembles on the `Z=0` plane.
+Verified numerically: the hierarchy world composition (`local * parentWorld`) reproduces the
+same assembled result as the old bake approach - `CommonBed01` frame `Z[0,74]`, mattress
+pieces `Z[26,40]`, side rails at the board edges.
+
+Locations load models through `SkyrimFileSystem.LoadModel` (same cache as the Models view), so
+the NIF is parsed, materialized, and its GPU buffers are created exactly once per model path.
+Each placed object in `SkyrimSceneBuilder` then gets a `NifModelLoader.CloneHierarchy` copy of
+the cached bone tree whose mesh parts `Clone()` shares the source `VertexBuffer`/`IndexBuffer`;
+the cache itself is never re-parented or mutated. The placement transform stays on the group
+bone, the Z-up->Y-up root rotation on the scene root bone.

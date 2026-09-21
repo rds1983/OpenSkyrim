@@ -110,19 +110,6 @@ public class SkyrimFileSystem
 		return model;
 	}
 
-	public IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(string key)
-	{
-		if (TryGetCached(key, out IReadOnlyList<NifMeshDefinition> cached))
-		{
-			return cached;
-		}
-
-		using var stream = Open(key);
-		var definitions = NifModelLoader.LoadMeshDefinitions(stream);
-		SetCached(key, definitions);
-		return definitions;
-	}
-
 	private bool TryGetCached<T>(string key, out T value) where T : class
 	{
 		if (TryGetArchiveFile(key, out var fileInfo))

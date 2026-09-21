@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
+using Nursia;
+using Nursia.SceneGraph;
+using OpenSkyrim.NifViewer.Utility;
 
 namespace OpenSkyrim.NifViewer;
 
@@ -15,27 +17,27 @@ public sealed class SkyrimSceneBuilder
 
 	private static readonly Matrix RootRotation = Matrix.CreateRotationX(-MathHelper.PiOver2);
 
-	private readonly GraphicsDevice _graphicsDevice;
 	private readonly SkyrimFileSystem _fileSystem;
 
 	public int PlacedObjectCount { get; private set; }
 	public int LoadedModelCount { get; private set; }
 
-	public SkyrimSceneBuilder(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem)
+	public SkyrimSceneBuilder(SkyrimFileSystem fileSystem)
 	{
-		_graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
 	}
 
-	public DrModel Build(ILinkCache linkCache, ICellGetter cell)
+	public SceneNode Build(ILinkCache linkCache, ICellGetter cell)
 	{
 		PlacedObjectCount = 0;
 		LoadedModelCount = 0;
 
 		var name = string.IsNullOrWhiteSpace(cell.EditorID) ? "Location" : cell.EditorID;
-		var root = new DrModelBone(name)
+
+		var rootNode = new SceneNode()
 		{
-			DefaultPose = new SrtTransform(RootRotation)
+			Id = name,
+			Rotation = new Vector3(-90, 0, 0)
 		};
 
 		var children = new List<DrModelBone>();
@@ -46,19 +48,18 @@ public sealed class SkyrimSceneBuilder
 				break;
 			}
 
-			var bone = CreateBone(linkCache, placed);
+			var bone = CreateChild(linkCache, placed);
 			if (bone != null)
 			{
-				children.Add(bone);
+				rootNode.Children.Add(bone);
 				++PlacedObjectCount;
 			}
 		}
 
-		root.Children = children.ToArray();
-		return new DrModel(root);
+		return rootNode;
 	}
 
-	private DrModelBone CreateBone(ILinkCache linkCache, IPlacedGetter placed)
+	private SceneNode CreateChild(ILinkCache linkCache, IPlacedGetter placed)
 	{
 		if (placed is not IPlacedObjectGetter placedObject)
 		{
@@ -71,7 +72,7 @@ public sealed class SkyrimSceneBuilder
 			return null;
 		}
 
-		if (!baseLink.TryResolve<IPlaceableObjectGetter>(linkCache, out var baseRecord) || baseRecord == null)
+		if (!baseLink.TryResolve(linkCache, out var baseRecord) || baseRecord == null)
 		{
 			return null;
 		}
@@ -92,10 +93,10 @@ public sealed class SkyrimSceneBuilder
 			return null;
 		}
 
-		IReadOnlyList<NifMeshDefinition> definitions;
+		DrModel model;
 		try
 		{
-			definitions = _fileSystem.LoadMeshDefinitions(modelPath);
+			model = _fileSystem.LoadModel(Nrs.GraphicsDevice, modelPath);
 		}
 		catch (Exception ex)
 		{
@@ -103,29 +104,23 @@ public sealed class SkyrimSceneBuilder
 			return null;
 		}
 
-		if (definitions == null || definitions.Count == 0)
+		if (model == null || model.Meshes.Length == 0)
 		{
 			return null;
 		}
 
-		var transform = GetTransform(placedObject);
+
 		var boneName = $"{baseRecord.EditorID}";
-		var group = new DrModelBone(boneName)
+
+		var result = new NursiaModelNode
 		{
-			DefaultPose = new SrtTransform(transform)
+			Id = boneName,
+			Model = model
 		};
 
-		var children = new List<DrModelBone>(definitions.Count);
-		for (var i = 0; i < definitions.Count; ++i)
-		{
-			var definition = definitions[i];
-			var mesh = NifModelLoader.CreateMesh(_graphicsDevice, _fileSystem, definition);
-			children.Add(new DrModelBone($"{boneName}_{i}", mesh));
-		}
+		SetTransform(result, placedObject);
 
-		group.Children = children.ToArray();
-		++LoadedModelCount;
-		return group;
+		return result;
 	}
 
 	private static IEnumerable<IPlacedGetter> EnumeratePlaced(ICellGetter cell)
@@ -149,17 +144,23 @@ public sealed class SkyrimSceneBuilder
 		}
 	}
 
-	private static Matrix GetTransform(IPlacedObjectGetter placed)
+	private static void SetTransform(SceneNode node, IPlacedObjectGetter placed)
 	{
 		var placement = placed.Placement;
-		var position = placement?.Position ?? default;
-		var rotation = placement?.Rotation ?? default;
-		var scale = placed.Scale ?? 1f;
+		if (placed == null || placement == null)
+		{
+			return;
+		}
 
-		return Matrix.CreateScale(scale)
-			* Matrix.CreateRotationZ(MathHelper.ToRadians(rotation.Z))
-			* Matrix.CreateRotationY(MathHelper.ToRadians(rotation.Y))
-			* Matrix.CreateRotationX(MathHelper.ToRadians(rotation.X))
-			* Matrix.CreateTranslation(position.X, position.Y, position.Z);
+		node.Translation = placement.Position.ToVector3();
+		node.Rotation = placement.Rotation.ToVector3().ToDegrees();
+		if (placed.Scale != null)
+		{
+			node.Scale = new Vector3(placed.Scale.Value);
+		}
+		else
+		{
+			node.Scale = Vector3.One;
+		}
 	}
 }
