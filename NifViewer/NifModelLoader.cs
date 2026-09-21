@@ -137,19 +137,17 @@ namespace OpenSkyrim.NifViewer
 				return result;
 			}
 
+			// Keep the texture set ordering so index maps to the material slot
+			// (0 = diffuse, 1 = normal, 2 = glow/emissive, ...).
 			foreach (var texture in textureSet.Textures)
 			{
-				var path = texture.Content;
-				if (!string.IsNullOrWhiteSpace(path))
-				{
-					result.Add(path);
-				}
+				result.Add(texture.Content);
 			}
 
 			return result;
 		}
 
-		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName)
+		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName, SkyrimFileSystem fileSystem)
 		{
 			var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
 			var definitions = LoadMeshDefinitions(nifStream);
@@ -169,14 +167,74 @@ namespace OpenSkyrim.NifViewer
 
 				meshBuilder.AddIndicesRange(definition.Indices);
 
-				var mesh = new DrMesh { Name = definition.Name };
-				mesh.MeshParts.Add(meshBuilder.CreateMeshPart(graphicsDevice, false));
+				var mesh = new DrMesh
+				{
+					Name = definition.Name
+				};
+				var meshPart = meshBuilder.CreateMeshPart(graphicsDevice, true);
+				meshPart.Material = CreateMaterial(graphicsDevice, fileSystem, definition);
+				mesh.MeshParts.Add(meshPart);
 				mesh.Tag = definition.Textures;
 				children.Add(new DrModelBone(definition.Name, mesh));
 			}
 
 			root.Children = children.ToArray();
 			return new DrModel(root);
+		}
+
+		private static DrMaterial CreateMaterial(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, NifMeshDefinition definition)
+		{
+			var material = new DrMaterial
+			{
+				Name = definition.Name
+			};
+
+			for (var i = 0; i < definition.Textures.Count; ++i)
+			{
+				var texturePath = definition.Textures[i];
+				if (string.IsNullOrWhiteSpace(texturePath))
+				{
+					continue;
+				}
+
+				var texture = LoadDdsTexture(graphicsDevice, fileSystem, texturePath);
+				if (texture == null)
+				{
+					continue;
+				}
+
+				switch (i)
+				{
+					case 0:
+						material.DiffuseTexture = texture;
+						break;
+					case 1:
+						material.NormalTexture = texture;
+						break;
+					case 2:
+						material.EmissiveTexture = texture;
+						break;
+				}
+			}
+
+			return material;
+		}
+
+		private static Texture2D LoadDdsTexture(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, string path)
+		{
+			try
+			{
+				using var stream = fileSystem.Open(path);
+				var texture = Texture2D.DDSFromStreamEXT(graphicsDevice, stream);
+				texture.Name = path;
+				OSK.LogInfo($"Loaded texture '{path}'");
+				return texture;
+			}
+			catch (Exception ex)
+			{
+				OSK.LogWarning($"Failed to load texture '{path}': {ex.Message}");
+				return null;
+			}
 		}
 	}
 }

@@ -68,16 +68,33 @@ public class DrModelViewWidget : Widget
 
 			for (var partIndex = 0; partIndex < mesh.MeshParts.Count; ++partIndex)
 			{
-				var material = new UnlitMaterial
-				{
-					DiffuseColor = Color.White
-				};
-
-				materials[meshIndex][partIndex] = material;
+				materials[meshIndex][partIndex] = ToNursiaMaterial(mesh.MeshParts[partIndex].Material);
 			}
 		}
 
 		return materials;
+	}
+
+	private static IMaterial ToNursiaMaterial(DrMaterial material)
+	{
+		if (material == null)
+		{
+			return new UnlitMaterial
+			{
+				DiffuseColor = Color.White
+			};
+		}
+
+		return new BlinnPhongMaterial
+		{
+			DiffuseColor = material.DiffuseColor,
+			SpecularColor = material.SpecularColor,
+			SpecularPower = material.Shininess,
+			EmissiveColor = material.EmissiveColor,
+			DiffuseTexture = material.DiffuseTexture,
+			SpecularTexture = material.SpecularTexture,
+			NormalTexture = material.NormalTexture
+		};
 	}
 
 	public void UpdateCameraInput()

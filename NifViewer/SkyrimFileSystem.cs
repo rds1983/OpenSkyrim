@@ -24,7 +24,7 @@ public class SkyrimFileSystem
 		public override string ToString() => $"{Path.GetFileName(ArchivePath)}, {File.Path}";
 	}
 
-	private readonly Dictionary<string, ArchiveFileInfo> _files = new Dictionary<string, ArchiveFileInfo>();
+	private readonly Dictionary<string, ArchiveFileInfo> _files = new Dictionary<string, ArchiveFileInfo>(StringComparer.OrdinalIgnoreCase);
 
 	public string RootPath { get; }
 	public string DataPath { get; }
@@ -42,13 +42,15 @@ public class SkyrimFileSystem
 	public Stream Open(string key)
 	{
 		ArchiveFileInfo fileInfo;
-		if (!_files.TryGetValue(key, out fileInfo))
+		if (!_files.TryGetValue(NormalizePath(key), out fileInfo))
 		{
 			throw new Exception($"Unknown file '{key}'");
 		}
 
 		return fileInfo.File.AsStream();
 	}
+
+	private static string NormalizePath(string path) => path.Replace('\\', '/');
 
 	private static string ResolveSkyrimDataFolder(string path)
 	{
@@ -81,15 +83,16 @@ public class SkyrimFileSystem
 					continue;
 				}
 
+				var path = NormalizePath(archiveFile.Path);
 				var newFile = new ArchiveFileInfo(archivePath, archiveFile);
 
 				ArchiveFileInfo oldFile;
-				if (_files.TryGetValue(archiveFile.Path, out oldFile))
+				if (_files.TryGetValue(path, out oldFile))
 				{
-					OSK.LogWarning($"Dublicate file '{archiveFile.Path}': old = '{Path.GetFileName(oldFile.ArchivePath)}', new = '{Path.GetFileName(newFile.ArchivePath)}'.");
+					OSK.LogWarning($"Dublicate file '{path}': old = '{Path.GetFileName(oldFile.ArchivePath)}', new = '{Path.GetFileName(newFile.ArchivePath)}'.");
 				}
 
-				_files[archiveFile.Path] = newFile;
+				_files[path] = newFile;
 				++count;
 			}
 
