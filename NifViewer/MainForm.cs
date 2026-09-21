@@ -26,6 +26,7 @@ public class MainForm : Grid
 	private Label _headerLabel;
 	private Label _countLabel;
 	private Label _statusLabel;
+	private readonly VerticalStackPanel _leftPanel;
 
 	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
@@ -45,8 +46,6 @@ public class MainForm : Grid
 
 		ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
 		ColumnsProportions.Add(new Proportion(ProportionType.Part, 2.0f));
-		RowsProportions.Add(new Proportion(ProportionType.Auto));
-		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
@@ -95,27 +94,36 @@ public class MainForm : Grid
 			HorizontalAlignment = HorizontalAlignment.Stretch
 		};
 
+		var mainSplit = new HorizontalSplitPane();
+
+		_leftPanel = new VerticalStackPanel
+		{
+			Spacing = 8
+		};
+
+		_leftPanel.Widgets.Add(_sourceCombo);
+		_leftPanel.Widgets.Add(_filterTextBox);
+
+		mainSplit.Widgets.Add(_leftPanel);
+		mainSplit.Widgets.Add(_viewer);
+		mainSplit.SetSplitterPosition(0, 0.25f);
+
+
 		Grid.SetColumn(_headerLabel, 0);
 		Grid.SetColumnSpan(_headerLabel, 2);
 		Grid.SetRow(_headerLabel, 0);
 		Grid.SetColumn(_countLabel, 0);
 		Grid.SetColumnSpan(_countLabel, 2);
 		Grid.SetRow(_countLabel, 1);
-		Grid.SetColumn(_sourceCombo, 0);
-		Grid.SetRow(_sourceCombo, 2);
-		Grid.SetColumn(_filterTextBox, 0);
-		Grid.SetRow(_filterTextBox, 3);
-		Grid.SetColumn(_viewer, 1);
-		Grid.SetRow(_viewer, 4);
 		Grid.SetColumn(_statusLabel, 0);
+		Grid.SetRow(mainSplit, 2);
+		Grid.SetColumnSpan(mainSplit, 2);
 		Grid.SetColumnSpan(_statusLabel, 2);
-		Grid.SetRow(_statusLabel, 5);
+		Grid.SetRow(_statusLabel, 3);
 
 		Widgets.Add(_headerLabel);
 		Widgets.Add(_countLabel);
-		Widgets.Add(_sourceCombo);
-		Widgets.Add(_filterTextBox);
-		Widgets.Add(_viewer);
+		Widgets.Add(mainSplit);
 		Widgets.Add(_statusLabel);
 
 		QueuePopulateListView();
@@ -337,14 +345,12 @@ public class MainForm : Grid
 
 		if (_listView != null)
 		{
-			Widgets.Remove(_listView);
+			_leftPanel.Widgets.Remove(_listView);
 		}
 
 		listView.SelectedIndexChanged += (s, a) => OnListItemSelected();
 
-		Grid.SetColumn(listView, 0);
-		Grid.SetRow(listView, 4);
-		Widgets.Add(listView);
+		_leftPanel.Widgets.Add(listView);
 		_listView = listView;
 
 		var noun = _sourceCombo.SelectedIndex == LocationsSource ? "locations" : "models";
