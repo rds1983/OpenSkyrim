@@ -3,6 +3,8 @@ using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace OpenSkyrim.NifViewer;
 
@@ -17,6 +19,9 @@ public class MainForm : Grid
 	private Label _headerLabel;
 	private Label _countLabel;
 	private Label _statusLabel;
+
+	private int _populateVersion;
+	private volatile ListView _pendingListView;
 
 	public MainForm(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem)
 	{
@@ -51,15 +56,7 @@ public class MainForm : Grid
 			HorizontalAlignment = HorizontalAlignment.Stretch
 		};
 
-		_filterTextBox.TextChanged += (s, a) => PopulateListView();
-
-		_listView = new ListView
-		{
-			HorizontalAlignment = HorizontalAlignment.Stretch,
-			VerticalAlignment = VerticalAlignment.Stretch
-		};
-
-		_listView.SelectedIndexChanged += (s, a) => OnListItemSelected();
+		_filterTextBox.TextChanged += (s, a) => QueuePopulateListView();
 
 		_viewer = new DrModelViewWidget
 		{
@@ -80,8 +77,6 @@ public class MainForm : Grid
 		Grid.SetRow(_countLabel, 1);
 		Grid.SetColumn(_filterTextBox, 0);
 		Grid.SetRow(_filterTextBox, 2);
-		Grid.SetColumn(_listView, 0);
-		Grid.SetRow(_listView, 3);
 		Grid.SetColumn(_viewer, 1);
 		Grid.SetRow(_viewer, 3);
 		Grid.SetColumn(_statusLabel, 0);
@@ -91,15 +86,15 @@ public class MainForm : Grid
 		Widgets.Add(_headerLabel);
 		Widgets.Add(_countLabel);
 		Widgets.Add(_filterTextBox);
-		Widgets.Add(_listView);
 		Widgets.Add(_viewer);
 		Widgets.Add(_statusLabel);
 
-		PopulateListView();
+		QueuePopulateListView();
 	}
 
 	public void Update(float elapsedSeconds)
 	{
+		ApplyPendingListView();
 		_viewer.UpdateCameraInput(elapsedSeconds);
 	}
 
@@ -129,30 +124,75 @@ public class MainForm : Grid
 		}
 	}
 
-	private void PopulateListView()
+	private void QueuePopulateListView()
 	{
-		_listView.Widgets.Clear();
-
 		var filter = _filterTextBox.Text;
-		foreach (var key in _fileSystem.Keys)
+		var version = Interlocked.Increment(ref _populateVersion);
+		_pendingListView = null;
+
+		Task.Run(() =>
 		{
-			var ext = Path.GetExtension(key);
-			if (!string.Equals(ext, ".nif", StringComparison.OrdinalIgnoreCase))
+			try
 			{
-				continue;
-			}
+				var listView = new ListView
+				{
+					HorizontalAlignment = HorizontalAlignment.Stretch,
+					VerticalAlignment = VerticalAlignment.Stretch
+				};
 
-			if (!string.IsNullOrEmpty(filter) && key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
-			{
-				continue;
-			}
+				foreach (var key in _fileSystem.Keys)
+				{
+					var ext = Path.GetExtension(key);
+					if (!string.Equals(ext, ".nif", StringComparison.OrdinalIgnoreCase))
+					{
+						continue;
+					}
 
-			_listView.Widgets.Add(new Label
+					if (!string.IsNullOrEmpty(filter) && key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+					{
+						continue;
+					}
+
+					listView.Widgets.Add(new Label
+					{
+						Text = key,
+						Tag = key
+					});
+				}
+
+				if (version == Volatile.Read(ref _populateVersion))
+				{
+					_pendingListView = listView;
+				}
+			}
+			catch (Exception ex)
 			{
-				Text = key,
-				Tag = key
-			});
+				OSK.LogError($"Failed to populate list: {ex.Message}");
+			}
+		});
+	}
+
+	private void ApplyPendingListView()
+	{
+		var listView = _pendingListView;
+		if (listView == null)
+		{
+			return;
 		}
+
+		_pendingListView = null;
+
+		if (_listView != null)
+		{
+			Widgets.Remove(_listView);
+		}
+
+		listView.SelectedIndexChanged += (s, a) => OnListItemSelected();
+
+		Grid.SetColumn(listView, 0);
+		Grid.SetRow(listView, 3);
+		Widgets.Add(listView);
+		_listView = listView;
 
 		_statusLabel.Text = $"There are {_listView.Widgets.Count} models.";
 	}
