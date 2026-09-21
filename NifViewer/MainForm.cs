@@ -130,6 +130,8 @@ public class MainForm : Grid
 		var version = Interlocked.Increment(ref _populateVersion);
 		_pendingListView = null;
 
+		_statusLabel.Text = "Populating list...";
+
 		Task.Run(() =>
 		{
 			try

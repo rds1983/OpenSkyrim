@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Nursia;
 using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
@@ -15,11 +17,66 @@ namespace OpenSkyrim.NifViewer;
 
 public class DrModelViewWidget : Widget
 {
+	private const int GridSize = 200;
+	private const int GridCellSize = 2;
+	private const int AxisesSize = 160;
+
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
+	private readonly Scene _sceneAxises;
 	private readonly NursiaModelNode _modelNode = new NursiaModelNode();
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
+	private MeshNode _gridMesh;
+
+	private MeshNode GridMesh
+	{
+		get
+		{
+			if (_gridMesh == null)
+			{
+				var vertices = new List<Vector3>();
+				var indices = new List<ushort>();
+
+				ushort idx = 0;
+				for (var x = -GridSize; x <= GridSize; x += GridCellSize)
+				{
+					vertices.Add(new Vector3(x, 0, -GridSize));
+					vertices.Add(new Vector3(x, 0, GridSize));
+
+					indices.Add(idx);
+					++idx;
+					indices.Add(idx);
+					++idx;
+				}
+
+				for (var z = -GridSize; z <= GridSize; z += GridCellSize)
+				{
+					vertices.Add(new Vector3(-GridSize, 0, z));
+					vertices.Add(new Vector3(GridSize, 0, z));
+
+					indices.Add(idx);
+					++idx;
+					indices.Add(idx);
+					++idx;
+				}
+
+				var mesh = new DrMeshPart(Nrs.GraphicsDevice, vertices.ToArray(), indices.ToArray(), PrimitiveType.LineList);
+
+				_gridMesh = new MeshNode
+				{
+					Mesh = mesh,
+					Material = new UnlitMaterial
+					{
+						DiffuseColor = Color.Green,
+						CastsShadows = false
+					},
+				};
+			}
+
+			return _gridMesh;
+		}
+	}
 
 	public DrModelViewWidget()
 	{
@@ -33,6 +90,7 @@ public class DrModelViewWidget : Widget
 		var root = new SceneNode();
 		root.Children.Add(new DirectLight { Rotation = new Vector3(45, 45, 0), CastsShadow = false });
 		root.Children.Add(new DirectLight { Rotation = new Vector3(225, 45, 0), CastsShadow = false });
+		root.Children.Add(GridMesh);
 		root.Children.Add(_modelNode);
 
 		_scene.Root = root;
@@ -40,6 +98,11 @@ public class DrModelViewWidget : Widget
 		_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
 		_camera.NearPlane = 0.1f;
 		_camera.FarPlane = 1000f;
+
+		_sceneAxises = new Scene
+		{
+			Root = Resources.ModelAxises
+		};
 	}
 
 	public DrModel Model
@@ -107,7 +170,7 @@ public class DrModelViewWidget : Widget
 
 	public override void InternalRender(RenderContext context)
 	{
-		if (_modelNode.Model == null || ActualBounds.Width <= 0 || ActualBounds.Height <= 0)
+		if (ActualBounds.Width <= 0 || ActualBounds.Height <= 0)
 		{
 			return;
 		}
@@ -119,10 +182,26 @@ public class DrModelViewWidget : Widget
 
 		var bounds = context.ToGlobal(ActualBounds);
 		device.Viewport = new Viewport(bounds.X, bounds.Y, bounds.Width, bounds.Height);
-		_scene.Render(_renderer, _camera);
+		if (_modelNode.Model != null)
+		{
+			_scene.Render(_renderer, _camera);
+		}
 		device.Viewport = previousViewport;
 
+		// Draw axises gizmo in the top-right corner
+		var axisesRoot = _sceneAxises.Root;
+		var axisesCamera = (Camera)_camera.Clone();
+
+		// Make the gizmo placed always in front of the camera
+		axisesCamera.Translation = Vector3.Zero;
+		var direction = axisesCamera.GlobalTransform.Forward;
+		direction.Normalize();
+		axisesRoot.Translation = direction * 2.5f;
+
+		var axisesTarget = _sceneAxises.RenderToTarget(_renderer, axisesCamera, AxisesSize, AxisesSize);
+
 		context.Begin();
+		context.Draw(axisesTarget, new Rectangle(ActualBounds.Width - AxisesSize, 0, AxisesSize, AxisesSize), null, Color.White);
 	}
 
 	private void ResetCamera()
