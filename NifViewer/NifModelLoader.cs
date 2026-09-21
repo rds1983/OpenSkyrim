@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using NiflySharp;
 using NiflySharp.Blocks;
+using NifViewer.Utility;
 
 namespace OpenSkyrim.NifViewer
 {
@@ -52,7 +52,17 @@ namespace OpenSkyrim.NifViewer
 				throw new InvalidDataException("The stream is not a valid Gamebryo/NetImmerse NIF file.", ex);
 			}
 
-			return nifFile.GetShapes().Select(shape => ToMeshDefinition(nifFile, shape)).Where(d => d != null).ToList();
+			var definitions = new List<NifMeshDefinition>();
+			foreach (var shape in nifFile.GetShapes())
+			{
+				var definition = ToMeshDefinition(nifFile, shape);
+				if (definition != null)
+				{
+					definitions.Add(definition);
+				}
+			}
+
+			return definitions;
 		}
 
 		private static NifMeshDefinition ToMeshDefinition(NifFile nifFile, INiShape shape)
@@ -70,66 +80,102 @@ namespace OpenSkyrim.NifViewer
 			{
 				Name = string.IsNullOrWhiteSpace(shape.Name.String) ? shape.GetType().Name : shape.Name.String
 			};
-			definition.Vertices.AddRange(vertices.Select(v => new Vector3(v.X, v.Y, v.Z)));
+
+			foreach (var vertex in vertices)
+			{
+				definition.Vertices.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
+			}
+
 			if (normals != null)
 			{
-				definition.Normals.AddRange(normals.Select(n => new Vector3(n.X, n.Y, n.Z)));
+				foreach (var normal in normals)
+				{
+					definition.Normals.Add(new Vector3(normal.X, normal.Y, normal.Z));
+				}
 			}
 
 			if (uvs != null)
 			{
-				definition.Uvs.AddRange(uvs.Select(u => new Vector2(u.U, u.V)));
+				foreach (var uv in uvs)
+				{
+					definition.Uvs.Add(new Vector2(uv.U, uv.V));
+				}
 			}
 
 			if (shape.Triangles != null)
 			{
-				definition.Indices.AddRange(shape.Triangles.SelectMany(t => new[] { (int)t.V1, (int)t.V2, (int)t.V3 }));
+				foreach (var triangle in shape.Triangles)
+				{
+					definition.Indices.Add((int)triangle.V1);
+					definition.Indices.Add((int)triangle.V2);
+					definition.Indices.Add((int)triangle.V3);
+				}
 			}
 
-			definition.Textures.AddRange(GetTexturePaths(nifFile, shape));
+			var textures = GetTexturePaths(nifFile, shape);
+			foreach (var texture in textures)
+			{
+				definition.Textures.Add(texture);
+			}
 
 			return definition;
 		}
 
-		private static IEnumerable<string> GetTexturePaths(NifFile nifFile, INiShape shape)
+		private static List<string> GetTexturePaths(NifFile nifFile, INiShape shape)
 		{
+			var result = new List<string>();
+
 			var shader = nifFile.GetShader(shape);
 			var textureSetRef = shader?.TextureSetRef;
 			if (shader?.HasTextureSet != true || textureSetRef == null || textureSetRef.IsEmpty())
 			{
-				return Enumerable.Empty<string>();
+				return result;
 			}
 
 			if (nifFile.GetBlock(textureSetRef) is not BSShaderTextureSet textureSet)
 			{
-				return Enumerable.Empty<string>();
+				return result;
 			}
 
-			return textureSet.Textures
-				.Select(texture => texture.Content)
-				.Where(path => !string.IsNullOrWhiteSpace(path));
+			foreach (var texture in textureSet.Textures)
+			{
+				var path = texture.Content;
+				if (!string.IsNullOrWhiteSpace(path))
+				{
+					result.Add(path);
+				}
+			}
+
+			return result;
 		}
 
 		public static DrModel LoadDrModel(GraphicsDevice graphicsDevice, Stream nifStream, string rootName)
 		{
 			var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
-			root.Children = LoadMeshDefinitions(nifStream).Select(definition =>
+			var definitions = LoadMeshDefinitions(nifStream);
+			var children = new List<DrModelBone>(definitions.Count);
+
+			foreach (var definition in definitions)
 			{
-				var vertices = new VertexPositionNormalTexture[definition.Vertices.Count];
+				var meshBuilder = new MeshBuilder();
+
 				for (var i = 0; i < definition.Vertices.Count; i++)
 				{
-					vertices[i] = new VertexPositionNormalTexture(
+					meshBuilder.AddVertex(new VertexPositionNormalTexture(
 						definition.Vertices[i],
 						definition.Normals.Count > i ? definition.Normals[i] : Vector3.Up,
-						definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero);
+						definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero));
 				}
 
-				var mesh = new DrMesh { Name = definition.Name };
-				mesh.MeshParts.Add(new DrMeshPart(graphicsDevice, vertices, definition.Indices.ToArray()));
-				mesh.Tag = definition.Textures;
-				return new DrModelBone(definition.Name, mesh);
-			}).ToArray();
+				meshBuilder.AddIndicesRange(definition.Indices);
 
+				var mesh = new DrMesh { Name = definition.Name };
+				mesh.MeshParts.Add(meshBuilder.CreateMeshPart(graphicsDevice, false));
+				mesh.Tag = definition.Textures;
+				children.Add(new DrModelBone(definition.Name, mesh));
+			}
+
+			root.Children = children.ToArray();
 			return new DrModel(root);
 		}
 	}
