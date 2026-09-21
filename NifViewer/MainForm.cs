@@ -98,9 +98,9 @@ public class MainForm : Grid
 		PopulateListView();
 	}
 
-	public void Update()
+	public void Update(float elapsedSeconds)
 	{
-		_viewer.UpdateCameraInput();
+		_viewer.UpdateCameraInput(elapsedSeconds);
 	}
 
 	private void OnListItemSelected()

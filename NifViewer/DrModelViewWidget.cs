@@ -97,11 +97,11 @@ public class DrModelViewWidget : Widget
 		};
 	}
 
-	public void UpdateCameraInput()
+	public void UpdateCameraInput(float elapsedSeconds)
 	{
 		if (_modelNode.Model != null)
 		{
-			_cameraController.Update();
+			_cameraController.Update(elapsedSeconds);
 		}
 	}
 
@@ -130,6 +130,7 @@ public class DrModelViewWidget : Widget
 		if (_modelNode.Model == null)
 		{
 			_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
+			_cameraController.FocusPoint = null;
 			return;
 		}
 
@@ -146,6 +147,7 @@ public class DrModelViewWidget : Widget
 		var distance = Math.Max(size * 1.75f, 5f);
 
 		_camera.View = Matrix.CreateLookAt(new Vector3(center.X, center.Y, center.Z + distance), center, Vector3.Up);
+		_cameraController.FocusPoint = center;
 		_camera.NearPlane = Math.Max(0.01f, size / 1000f);
 		_camera.FarPlane = Math.Max(1000f, size * 20f);
 	}

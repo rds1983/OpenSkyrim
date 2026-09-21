@@ -51,7 +51,7 @@ public class NifViewerGame : Game
 	protected override void Update(GameTime gameTime)
 	{
 		base.Update(gameTime);
-		_mainForm.Update();
+		_mainForm.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
 	}
 
 	protected override void Draw(GameTime gameTime)
