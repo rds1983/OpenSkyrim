@@ -20,6 +20,7 @@ public class DrModelViewWidget : Widget
 	private const int GridSize = 200;
 	private const int GridCellSize = 2;
 	private const int AxisesSize = 160;
+	private const float MoveSpeedReferenceDistance = 100f;
 
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
@@ -227,6 +228,7 @@ public class DrModelViewWidget : Widget
 
 		_camera.View = Matrix.CreateLookAt(new Vector3(center.X, center.Y, center.Z + distance), center, Vector3.Up);
 		_cameraController.FocusPoint = center;
+		_cameraController.MoveSpeedFactor = Math.Min(1f, MoveSpeedReferenceDistance / Math.Max(distance, 1f));
 		_camera.NearPlane = Math.Max(0.01f, size / 1000f);
 		_camera.FarPlane = Math.Max(1000f, size * 20f);
 	}

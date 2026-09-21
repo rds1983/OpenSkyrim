@@ -10,16 +10,23 @@ namespace OpenSkyrim.NifViewer;
 
 public class MainForm : Grid
 {
+	private const int LocationsSource = 0;
+	private const int ModelsSource = 1;
+
 	private readonly GraphicsDevice _graphicsDevice;
 	private readonly SkyrimFileSystem _fileSystem;
+	private readonly SkyrimSceneBuilder _sceneBuilder;
+	private readonly object _skyrimWorldLock = new object();
 
 	private ListView _listView;
+	private ComboView _sourceCombo;
 	private TextBox _filterTextBox;
 	private DrModelViewWidget _viewer;
 	private Label _headerLabel;
 	private Label _countLabel;
 	private Label _statusLabel;
 
+	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
 	private volatile ListView _pendingListView;
 
@@ -27,6 +34,7 @@ public class MainForm : Grid
 	{
 		_graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+		_sceneBuilder = new SkyrimSceneBuilder(_graphicsDevice, _fileSystem);
 
 		RowSpacing = 4;
 		ColumnSpacing = 8;
@@ -34,6 +42,7 @@ public class MainForm : Grid
 
 		ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
 		ColumnsProportions.Add(new Proportion(ProportionType.Part, 2.0f));
+		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Auto));
 		RowsProportions.Add(new Proportion(ProportionType.Auto));
@@ -50,6 +59,16 @@ public class MainForm : Grid
 		{
 			HorizontalAlignment = HorizontalAlignment.Stretch
 		};
+
+		_sourceCombo = new ComboView
+		{
+			HorizontalAlignment = HorizontalAlignment.Stretch
+		};
+
+		_sourceCombo.Widgets.Add(new Label { Text = "Locations" });
+		_sourceCombo.Widgets.Add(new Label { Text = "Models" });
+		_sourceCombo.SelectedIndex = LocationsSource;
+		_sourceCombo.SelectedIndexChanged += (s, a) => QueuePopulateListView();
 
 		_filterTextBox = new TextBox
 		{
@@ -75,16 +94,19 @@ public class MainForm : Grid
 		Grid.SetColumn(_countLabel, 0);
 		Grid.SetColumnSpan(_countLabel, 2);
 		Grid.SetRow(_countLabel, 1);
+		Grid.SetColumn(_sourceCombo, 0);
+		Grid.SetRow(_sourceCombo, 2);
 		Grid.SetColumn(_filterTextBox, 0);
-		Grid.SetRow(_filterTextBox, 2);
+		Grid.SetRow(_filterTextBox, 3);
 		Grid.SetColumn(_viewer, 1);
-		Grid.SetRow(_viewer, 3);
+		Grid.SetRow(_viewer, 4);
 		Grid.SetColumn(_statusLabel, 0);
 		Grid.SetColumnSpan(_statusLabel, 2);
-		Grid.SetRow(_statusLabel, 4);
+		Grid.SetRow(_statusLabel, 5);
 
 		Widgets.Add(_headerLabel);
 		Widgets.Add(_countLabel);
+		Widgets.Add(_sourceCombo);
 		Widgets.Add(_filterTextBox);
 		Widgets.Add(_viewer);
 		Widgets.Add(_statusLabel);
@@ -106,16 +128,28 @@ public class MainForm : Grid
 			return;
 		}
 
-		var path = item.Tag.ToString();
+		if (item.Tag is SkyrimLocation location)
+		{
+			LoadLocation(location);
+			return;
+		}
 
+		var path = item.Tag?.ToString();
+		if (string.IsNullOrEmpty(path))
+		{
+			return;
+		}
+
+		LoadModel(path);
+	}
+
+	private void LoadModel(string path)
+	{
 		try
 		{
-			using (var stream = _fileSystem.Open(path))
-			{
-				var model = NifModelLoader.LoadDrModel(_graphicsDevice, stream, string.Empty, _fileSystem);
-				_viewer.Model = model;
-				_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
-			}
+			var model = _fileSystem.LoadModel(_graphicsDevice, path);
+			_viewer.Model = model;
+			_statusLabel.Text = $"Loaded {model.Meshes.Length} mesh(es) from {path}";
 		}
 		catch (Exception ex)
 		{
@@ -124,9 +158,56 @@ public class MainForm : Grid
 		}
 	}
 
+	private void LoadLocation(SkyrimLocation location)
+	{
+		try
+		{
+			_statusLabel.Text = $"Loading '{location.Name}'...";
+			var world = GetSkyrimWorld();
+			if (world == null)
+			{
+				_statusLabel.Text = "Skyrim.esm is not available.";
+				return;
+			}
+
+			var model = _sceneBuilder.Build(world.LinkCache, location.Cell);
+			_viewer.Model = model;
+			_statusLabel.Text = $"Loaded {_sceneBuilder.PlacedObjectCount} object(s) ({_sceneBuilder.LoadedModelCount} mesh group(s)) from {location.Name}";
+		}
+		catch (Exception ex)
+		{
+			_viewer.Model = null;
+			_statusLabel.Text = ex.Message;
+		}
+	}
+
+	private SkyrimWorld GetSkyrimWorld()
+	{
+		lock (_skyrimWorldLock)
+		{
+			if (_skyrimWorld != null)
+			{
+				return _skyrimWorld;
+			}
+
+			var pluginPath = _fileSystem.GetPluginPath("Skyrim.esm");
+			if (!File.Exists(pluginPath))
+			{
+				OSK.LogWarning($"Unable to find plugin '{pluginPath}'");
+				return null;
+			}
+
+			OSK.LogInfo($"Loading '{pluginPath}'...");
+			_skyrimWorld = new SkyrimWorld(pluginPath);
+			OSK.LogInfo($"Found {_skyrimWorld.Locations.Count} location(s).");
+			return _skyrimWorld;
+		}
+	}
+
 	private void QueuePopulateListView()
 	{
 		var filter = _filterTextBox.Text;
+		var source = _sourceCombo.SelectedIndex;
 		var version = Interlocked.Increment(ref _populateVersion);
 		_pendingListView = null;
 
@@ -142,24 +223,13 @@ public class MainForm : Grid
 					VerticalAlignment = VerticalAlignment.Stretch
 				};
 
-				foreach (var key in _fileSystem.Keys)
+				if (source == LocationsSource)
 				{
-					var ext = Path.GetExtension(key);
-					if (!string.Equals(ext, ".nif", StringComparison.OrdinalIgnoreCase))
-					{
-						continue;
-					}
-
-					if (!string.IsNullOrEmpty(filter) && key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
-					{
-						continue;
-					}
-
-					listView.Widgets.Add(new Label
-					{
-						Text = key,
-						Tag = key
-					});
+					PopulateLocations(listView, filter);
+				}
+				else
+				{
+					PopulateModels(listView, filter);
 				}
 
 				if (version == Volatile.Read(ref _populateVersion))
@@ -172,6 +242,52 @@ public class MainForm : Grid
 				OSK.LogError($"Failed to populate list: {ex.Message}");
 			}
 		});
+	}
+
+	private void PopulateModels(ListView listView, string filter)
+	{
+		foreach (var key in _fileSystem.Keys)
+		{
+			var ext = Path.GetExtension(key);
+			if (!string.Equals(ext, ".nif", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			if (!string.IsNullOrEmpty(filter) && key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+			{
+				continue;
+			}
+
+			listView.Widgets.Add(new Label
+			{
+				Text = key,
+				Tag = key
+			});
+		}
+	}
+
+	private void PopulateLocations(ListView listView, string filter)
+	{
+		var world = GetSkyrimWorld();
+		if (world == null)
+		{
+			return;
+		}
+
+		foreach (var location in world.Locations)
+		{
+			if (!string.IsNullOrEmpty(filter) && location.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
+			{
+				continue;
+			}
+
+			listView.Widgets.Add(new Label
+			{
+				Text = location.Name,
+				Tag = location
+			});
+		}
 	}
 
 	private void ApplyPendingListView()
@@ -192,10 +308,11 @@ public class MainForm : Grid
 		listView.SelectedIndexChanged += (s, a) => OnListItemSelected();
 
 		Grid.SetColumn(listView, 0);
-		Grid.SetRow(listView, 3);
+		Grid.SetRow(listView, 4);
 		Widgets.Add(listView);
 		_listView = listView;
 
-		_statusLabel.Text = $"There are {_listView.Widgets.Count} models.";
+		var noun = _sourceCombo.SelectedIndex == LocationsSource ? "locations" : "models";
+		_statusLabel.Text = $"There are {_listView.Widgets.Count} {noun}.";
 	}
 }

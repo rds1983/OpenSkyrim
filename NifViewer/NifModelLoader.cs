@@ -22,12 +22,6 @@ namespace OpenSkyrim.NifViewer
 
 	public static class NifModelLoader
 	{
-		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(string nifPath)
-		{
-			using var stream = File.OpenRead(nifPath);
-			return LoadMeshDefinitions(stream);
-		}
-
 		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(Stream stream)
 		{
 			if (stream.CanSeek)
@@ -155,31 +149,36 @@ namespace OpenSkyrim.NifViewer
 
 			foreach (var definition in definitions)
 			{
-				var meshBuilder = new MeshBuilder();
-
-				for (var i = 0; i < definition.Vertices.Count; i++)
-				{
-					meshBuilder.AddVertex(new VertexPositionNormalTexture(
-						definition.Vertices[i],
-						definition.Normals.Count > i ? definition.Normals[i] : Vector3.Up,
-						definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero));
-				}
-
-				meshBuilder.AddIndicesRange(definition.Indices);
-
-				var mesh = new DrMesh
-				{
-					Name = definition.Name
-				};
-				var meshPart = meshBuilder.CreateMeshPart(graphicsDevice, true);
-				meshPart.Material = CreateMaterial(graphicsDevice, fileSystem, definition);
-				mesh.MeshParts.Add(meshPart);
-				mesh.Tag = definition.Textures;
-				children.Add(new DrModelBone(definition.Name, mesh));
+				children.Add(new DrModelBone(definition.Name, CreateMesh(graphicsDevice, fileSystem, definition)));
 			}
 
 			root.Children = children.ToArray();
 			return new DrModel(root);
+		}
+
+		public static DrMesh CreateMesh(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, NifMeshDefinition definition)
+		{
+			var meshBuilder = new MeshBuilder();
+
+			for (var i = 0; i < definition.Vertices.Count; i++)
+			{
+				meshBuilder.AddVertex(new VertexPositionNormalTexture(
+					definition.Vertices[i],
+					definition.Normals.Count > i ? definition.Normals[i] : Vector3.Up,
+					definition.Uvs.Count > i ? definition.Uvs[i] : Vector2.Zero));
+			}
+
+			meshBuilder.AddIndicesRange(definition.Indices);
+
+			var mesh = new DrMesh
+			{
+				Name = definition.Name
+			};
+			var meshPart = meshBuilder.CreateMeshPart(graphicsDevice, true);
+			meshPart.Material = CreateMaterial(graphicsDevice, fileSystem, definition);
+			mesh.MeshParts.Add(meshPart);
+			mesh.Tag = definition.Textures;
+			return mesh;
 		}
 
 		private static DrMaterial CreateMaterial(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, NifMeshDefinition definition)
@@ -197,7 +196,7 @@ namespace OpenSkyrim.NifViewer
 					continue;
 				}
 
-				var texture = LoadDdsTexture(graphicsDevice, fileSystem, texturePath);
+				var texture = fileSystem.LoadTexture(graphicsDevice, texturePath);
 				if (texture == null)
 				{
 					continue;
@@ -218,23 +217,6 @@ namespace OpenSkyrim.NifViewer
 			}
 
 			return material;
-		}
-
-		private static Texture2D LoadDdsTexture(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem, string path)
-		{
-			try
-			{
-				using var stream = fileSystem.Open(path);
-				var texture = Texture2D.DDSFromStreamEXT(graphicsDevice, stream);
-				texture.Name = path;
-				OSK.LogInfo($"Loaded texture '{path}'");
-				return texture;
-			}
-			catch (Exception ex)
-			{
-				OSK.LogWarning($"Failed to load texture '{path}': {ex.Message}");
-				return null;
-			}
 		}
 	}
 }

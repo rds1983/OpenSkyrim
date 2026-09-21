@@ -1,4 +1,6 @@
-﻿using Mutagen.Bethesda.Archives;
+﻿using DigitalRiseModel;
+using Microsoft.Xna.Framework.Graphics;
+using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Noggog;
 using System;
@@ -15,6 +17,8 @@ public class SkyrimFileSystem
 		public string ArchivePath { get; }
 		public IArchiveFile File { get; }
 
+		public object Value { get; set; }
+
 		public ArchiveFileInfo(string archivePath, IArchiveFile file)
 		{
 			ArchivePath = archivePath ?? throw new ArgumentNullException(nameof(archivePath));
@@ -25,6 +29,12 @@ public class SkyrimFileSystem
 	}
 
 	private readonly Dictionary<string, ArchiveFileInfo> _files = new Dictionary<string, ArchiveFileInfo>(StringComparer.OrdinalIgnoreCase);
+	private readonly Dictionary<string, object> _looseCache = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+	private static readonly string[] AssetPrefixes =
+	{
+		"meshes/", "textures/", "sound/", "music/", "interface/", "shaders/", "scripts/", "materials/"
+	};
 
 	public string RootPath { get; }
 	public string DataPath { get; }
@@ -41,13 +51,153 @@ public class SkyrimFileSystem
 
 	public Stream Open(string key)
 	{
-		ArchiveFileInfo fileInfo;
-		if (!_files.TryGetValue(NormalizePath(key), out fileInfo))
+		if (TryGetArchiveFile(key, out var fileInfo))
 		{
-			throw new Exception($"Unknown file '{key}'");
+			return fileInfo.File.AsStream();
 		}
 
-		return fileInfo.File.AsStream();
+		var loosePath = GetLoosePath(key);
+		if (loosePath != null)
+		{
+			return File.OpenRead(loosePath);
+		}
+
+		throw new Exception($"Unknown file '{key}'");
+	}
+
+	public bool FileExists(string key) => TryGetArchiveFile(key, out _) || GetLoosePath(key) != null;
+
+	public string GetPluginPath(string fileName) => Path.Combine(DataPath, fileName);
+
+	public Texture2D LoadTexture(GraphicsDevice graphicsDevice, string key)
+	{
+		if (string.IsNullOrWhiteSpace(key))
+		{
+			return null;
+		}
+
+		if (TryGetCached(key, out Texture2D cached))
+		{
+			return cached;
+		}
+
+		try
+		{
+			using var stream = Open(key);
+			var texture = Texture2D.DDSFromStreamEXT(graphicsDevice, stream);
+			texture.Name = key;
+			OSK.LogInfo($"Loaded texture '{key}'");
+			SetCached(key, texture);
+			return texture;
+		}
+		catch (Exception ex)
+		{
+			OSK.LogWarning($"Failed to load texture '{key}': {ex.Message}");
+			return null;
+		}
+	}
+
+	public DrModel LoadModel(GraphicsDevice graphicsDevice, string key)
+	{
+		if (TryGetCached(key, out DrModel cached))
+		{
+			return cached;
+		}
+
+		using var stream = Open(key);
+		var model = NifModelLoader.LoadDrModel(graphicsDevice, stream, Path.GetFileNameWithoutExtension(key), this);
+		SetCached(key, model);
+		return model;
+	}
+
+	public IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(string key)
+	{
+		if (TryGetCached(key, out IReadOnlyList<NifMeshDefinition> cached))
+		{
+			return cached;
+		}
+
+		using var stream = Open(key);
+		var definitions = NifModelLoader.LoadMeshDefinitions(stream);
+		SetCached(key, definitions);
+		return definitions;
+	}
+
+	private bool TryGetCached<T>(string key, out T value) where T : class
+	{
+		if (TryGetArchiveFile(key, out var fileInfo))
+		{
+			value = fileInfo.Value as T;
+			return value != null;
+		}
+
+		if (_looseCache.TryGetValue(NormalizePath(key), out var looseValue))
+		{
+			value = looseValue as T;
+			return value != null;
+		}
+
+		value = null;
+		return false;
+	}
+
+	private void SetCached(string key, object value)
+	{
+		if (TryGetArchiveFile(key, out var fileInfo))
+		{
+			fileInfo.Value = value;
+			return;
+		}
+
+		_looseCache[NormalizePath(key)] = value;
+	}
+
+	private bool TryGetArchiveFile(string key, out ArchiveFileInfo fileInfo)
+	{
+		var normalized = NormalizePath(key);
+		if (_files.TryGetValue(normalized, out fileInfo))
+		{
+			return true;
+		}
+
+		foreach (var prefix in AssetPrefixes)
+		{
+			if (!normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+				_files.TryGetValue(prefix + normalized, out fileInfo))
+			{
+				return true;
+			}
+		}
+
+		fileInfo = null;
+		return false;
+	}
+
+	private string GetLoosePath(string key)
+	{
+		var normalized = NormalizePath(key);
+
+		var candidate = Path.Combine(DataPath, normalized.Replace('/', Path.DirectorySeparatorChar));
+		if (File.Exists(candidate))
+		{
+			return candidate;
+		}
+
+		foreach (var prefix in AssetPrefixes)
+		{
+			if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			candidate = Path.Combine(DataPath, (prefix + normalized).Replace('/', Path.DirectorySeparatorChar));
+			if (File.Exists(candidate))
+			{
+				return candidate;
+			}
+		}
+
+		return null;
 	}
 
 	private static string NormalizePath(string path) => path.Replace('\\', '/');
