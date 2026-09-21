@@ -158,6 +158,8 @@ public class NifViewerGame : Game
 				Tag = key
 			});
 		}
+
+		_statusLabel.Text = $"There are {_listView.Widgets.Count} models.";
 	}
 
 	protected override void Update(GameTime gameTime)
