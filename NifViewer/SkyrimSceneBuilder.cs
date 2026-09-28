@@ -5,7 +5,6 @@ using Microsoft.Xna.Framework;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
-using Nursia;
 using Nursia.SceneGraph;
 using OpenSkyrim.NifViewer.Utility;
 
@@ -96,7 +95,7 @@ public sealed class SkyrimSceneBuilder
 		DrModel model;
 		try
 		{
-			model = _fileSystem.LoadModel(Nrs.GraphicsDevice, modelPath);
+			model = _fileSystem.LoadModel(modelPath);
 		}
 		catch (Exception ex)
 		{

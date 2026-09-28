@@ -41,7 +41,7 @@ public class NifViewerGame : Game
 		// Nrs.DebugSettings.DrawBoundingBoxes = true;
 
 		_fileSystem = new SkyrimFileSystem(_skyrimFolder);
-		_mainForm = new MainForm(GraphicsDevice, _fileSystem);
+		_mainForm = new MainForm(_fileSystem);
 
 		_desktop = new Desktop
 		{

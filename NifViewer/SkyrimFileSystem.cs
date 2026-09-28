@@ -1,8 +1,8 @@
-﻿using DigitalRiseModel;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework.Graphics;
 using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Noggog;
+using Nursia;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +10,7 @@ using System.Linq;
 
 namespace OpenSkyrim.NifViewer;
 
-public class SkyrimFileSystem
+public partial class SkyrimFileSystem
 {
 	private class ArchiveFileInfo
 	{
@@ -69,7 +69,7 @@ public class SkyrimFileSystem
 
 	public string GetPluginPath(string fileName) => Path.Combine(DataPath, fileName);
 
-	public Texture2D LoadTexture(GraphicsDevice graphicsDevice, string key)
+	public Texture2D LoadTexture(string key)
 	{
 		if (string.IsNullOrWhiteSpace(key))
 		{
@@ -84,7 +84,7 @@ public class SkyrimFileSystem
 		try
 		{
 			using var stream = Open(key);
-			var texture = Texture2D.DDSFromStreamEXT(graphicsDevice, stream);
+			var texture = Texture2D.DDSFromStreamEXT(Nrs.GraphicsDevice, stream);
 			texture.Name = key;
 			OSK.LogInfo($"Loaded texture '{key}'");
 			SetCached(key, texture);
@@ -95,19 +95,6 @@ public class SkyrimFileSystem
 			OSK.LogWarning($"Failed to load texture '{key}': {ex.Message}");
 			return null;
 		}
-	}
-
-	public DrModel LoadModel(GraphicsDevice graphicsDevice, string key)
-	{
-		if (TryGetCached(key, out DrModel cached))
-		{
-			return cached;
-		}
-
-		using var stream = Open(key);
-		var model = NifModelLoader.LoadDrModel(graphicsDevice, stream, Path.GetFileNameWithoutExtension(key), this);
-		SetCached(key, model);
-		return model;
 	}
 
 	private bool TryGetCached<T>(string key, out T value) where T : class

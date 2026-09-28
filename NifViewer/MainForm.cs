@@ -1,4 +1,3 @@
-using Microsoft.Xna.Framework.Graphics;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using Nursia.SceneGraph;
@@ -14,7 +13,6 @@ public class MainForm : Grid
 	private const int LocationsSource = 0;
 	private const int ModelsSource = 1;
 
-	private readonly GraphicsDevice _graphicsDevice;
 	private readonly SkyrimFileSystem _fileSystem;
 	private readonly SkyrimSceneBuilder _sceneBuilder;
 	private readonly object _skyrimWorldLock = new object();
@@ -34,9 +32,8 @@ public class MainForm : Grid
 	private bool _filterPopulatePending;
 	private float _filterPopulateDelay;
 
-	public MainForm(GraphicsDevice graphicsDevice, SkyrimFileSystem fileSystem)
+	public MainForm(SkyrimFileSystem fileSystem)
 	{
-		_graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
 		_sceneBuilder = new SkyrimSceneBuilder(_fileSystem);
 
@@ -163,7 +160,7 @@ public class MainForm : Grid
 	{
 		try
 		{
-			var model = _fileSystem.LoadModel(_graphicsDevice, path);
+			var model = _fileSystem.LoadModel(path);
 			_viewer.Node = new NursiaModelNode
 			{
 				Model = model
@@ -172,6 +169,7 @@ public class MainForm : Grid
 		}
 		catch (Exception ex)
 		{
+			OSK.LogError($"Failed to load '{path}': {ex.Message}");
 			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}
@@ -195,6 +193,7 @@ public class MainForm : Grid
 		}
 		catch (Exception ex)
 		{
+			OSK.LogError($"Failed to load '{location.Name}': {ex.Message}");
 			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}

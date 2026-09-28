@@ -151,8 +151,11 @@ Real `Skyrim.esm` counts: 590 interior cells, 16942 exterior cells.
 - `SkyrimLocations.cs` wraps the overlay + link cache and exposes a `SkyrimLocation` list
   (name + `ICellGetter` + optional `IWorldspaceGetter`).
 - `SkyrimSceneBuilder.cs` walks a cell's placed objects, resolves each base record, loads
-  its NIF mesh definitions and builds a `DrModel` with one transform bone group per object.
-- `SkyrimFileSystem` now also falls back to loose files under `Data` (not just BSA entries)
+  its NIF model and builds a `DrModel` with one transform bone group per object.
+- `SkyrimFileSystem` is a partial class: `SkyrimFileSystem.cs` handles archives / loose files
+  and the shared resource cache, `SkyrimFileSystem.Model.cs` turns NIFs into `DrModel`s.
+  Both assets are cached and loaded with a single call: `LoadTexture(key)` / `LoadModel(key)`.
+- `SkyrimFileSystem` also falls back to loose files under `Data` (not just BSA entries)
   and exposes `FileExists` / `GetPluginPath`.
 - `MainForm` has a source combo (`Locations` default, `Models`) above the filter box.
 
@@ -165,16 +168,16 @@ pieces at translation `(-22.3, -0.24, 33.7)`, a bedpost piece `Object08` at `(32
 42.2)` with a ~5 deg rotation). Ignoring them scrambles every multi-part model, which is
 why furniture like beds appeared misplaced.
 
-Fix in `NifModelLoader` (node-hierarchy approach):
+Fix in `SkyrimFileSystem.LoadModel` (node-hierarchy approach):
 - vertices are loaded **as-is** (shape-local space), no baking,
-- `ParseTree(Stream)` walks the NIF tree from `NifFile.GetRootNodes()`, descending into
+- the loader walks the NIF tree from `NifFile.GetRootNodes()`, descending into
   `NiNode.Children` (enumerate by index via `Count` / `GetBlockRef(i)`, resolve with
   `GetBlock(int)`),
-- each parsed node becomes a `NifTreeNode` carrying its **own local transform**
-  (`NiAVObject.Translation` / `Rotation` / `Scale`) plus optional shape mesh data,
-- `BuildNode` converts the tree to `DrModelBone`s whose `DefaultPose` is the node's local
-  transform; the DrModel skeleton applies the full chain, so mesh world positions are
-  correct without touching vertices.
+- every visited node is turned into a `DrModelBone` **directly** (no intermediate NIF tree):
+  the node's own local transform (`NiAVObject.Translation` / `Rotation` / `Scale`) becomes the
+  bone's `DefaultPose`, and a node with shape geometry gets a `DrMesh` built from that shape,
+- the DrModel skeleton applies the full chain, so mesh world positions are correct without
+  touching vertices.
 
 NIF rotation matrices are stored column-major (nif.xml field order
 `m11, m21, m31, m12, m22, m32, m13, m23, m33`); the field names follow the logical
@@ -186,7 +189,7 @@ pieces `Z[26,40]`, side rails at the board edges.
 
 Locations load models through `SkyrimFileSystem.LoadModel` (same cache as the Models view), so
 the NIF is parsed, materialized, and its GPU buffers are created exactly once per model path.
-Each placed object in `SkyrimSceneBuilder` then gets a `NifModelLoader.CloneHierarchy` copy of
-the cached bone tree whose mesh parts `Clone()` shares the source `VertexBuffer`/`IndexBuffer`;
-the cache itself is never re-parented or mutated. The placement transform stays on the group
+A cached bone tree is re-attached under another parent with `DrModelBone.Clone()`
+(DigitalRiseModel), whose cloned mesh parts share the source `VertexBuffer`/`IndexBuffer`; the
+cache itself is never re-parented or mutated. The placement transform stays on the group
 bone, the Z-up->Y-up root rotation on the scene root bone.
