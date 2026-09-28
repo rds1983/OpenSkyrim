@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
+using Noggog;
 using Nursia.SceneGraph;
 using OpenSkyrim.NifViewer.Utility;
 
@@ -13,8 +14,6 @@ namespace OpenSkyrim.NifViewer;
 public sealed class SkyrimSceneBuilder
 {
 	private const int MaxPlacedObjects = 4000;
-
-	private static readonly Matrix RootRotation = Matrix.CreateRotationX(-MathHelper.PiOver2);
 
 	private readonly SkyrimFileSystem _fileSystem;
 
@@ -36,10 +35,9 @@ public sealed class SkyrimSceneBuilder
 		var rootNode = new SceneNode()
 		{
 			Id = name,
-			Rotation = new Vector3(-90, 0, 0)
+			Rotation = new Vector3(-90, 0, 0)	// This transform is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
 		};
 
-		var children = new List<DrModelBone>();
 		foreach (var placed in EnumeratePlaced(cell))
 		{
 			if (PlacedObjectCount >= MaxPlacedObjects)
@@ -47,10 +45,10 @@ public sealed class SkyrimSceneBuilder
 				break;
 			}
 
-			var bone = CreateChild(linkCache, placed);
-			if (bone != null)
+			var child = CreateChild(linkCache, placed);
+			if (child != null)
 			{
-				rootNode.Children.Add(bone);
+				rootNode.Children.Add(child);
 				++PlacedObjectCount;
 			}
 		}
@@ -117,7 +115,7 @@ public sealed class SkyrimSceneBuilder
 			Model = model
 		};
 
-		SetTransform(result, placedObject);
+		SetTransform(modeled.Model, result, placedObject);
 
 		return result;
 	}
@@ -143,7 +141,7 @@ public sealed class SkyrimSceneBuilder
 		}
 	}
 
-	private static void SetTransform(SceneNode node, IPlacedObjectGetter placed)
+	private static void SetTransform(IModelGetter modelGetter, SceneNode node, IPlacedObjectGetter placed)
 	{
 		var placement = placed.Placement;
 		if (placed == null || placement == null)
@@ -151,8 +149,11 @@ public sealed class SkyrimSceneBuilder
 			return;
 		}
 
-		node.Translation = placement.Position.ToVector3();
-		node.Rotation = placement.Rotation.ToVector3().ToDegrees();
+		var v = placement.Position.ToVector3();
+		node.Translation = new Vector3(v.X, v.Y, v.Z);
+		 
+		v = placement.Rotation.ToVector3();
+		node.Rotation = new Vector3(v.X, v.Y, -v.Z).ToDegrees();    // "-Z" is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
 		if (placed.Scale != null)
 		{
 			node.Scale = new Vector3(placed.Scale.Value);
