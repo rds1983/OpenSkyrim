@@ -30,23 +30,6 @@ namespace OpenSkyrim.NifViewer
 
 	public static class NifModelLoader
 	{
-		public static IReadOnlyList<NifMeshDefinition> LoadMeshDefinitions(Stream stream)
-		{
-			var nifFile = LoadNif(stream);
-
-			var definitions = new List<NifMeshDefinition>();
-			foreach (var shape in nifFile.GetShapes())
-			{
-				var definition = ToMeshDefinition(nifFile, shape);
-				if (definition != null)
-				{
-					definitions.Add(definition);
-				}
-			}
-
-			return definitions;
-		}
-
 		private static NifMeshDefinition ToMeshDefinition(NifFile nifFile, INiShape shape)
 		{
 			var gd = shape.GeometryData;

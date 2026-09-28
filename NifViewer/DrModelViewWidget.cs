@@ -126,50 +126,6 @@ public class DrModelViewWidget : Widget
 		}
 	}
 
-	private IMaterial[][] BuildMaterials(DrModel model)
-	{
-		if (model == null)
-		{
-			return null;
-		}
-
-		var materials = new IMaterial[model.Meshes.Length][];
-		for (var meshIndex = 0; meshIndex < model.Meshes.Length; ++meshIndex)
-		{
-			var mesh = model.Meshes[meshIndex];
-			materials[meshIndex] = new IMaterial[mesh.MeshParts.Count];
-
-			for (var partIndex = 0; partIndex < mesh.MeshParts.Count; ++partIndex)
-			{
-				materials[meshIndex][partIndex] = ToNursiaMaterial(mesh.MeshParts[partIndex].Material);
-			}
-		}
-
-		return materials;
-	}
-
-	private static IMaterial ToNursiaMaterial(DrMaterial material)
-	{
-		if (material == null)
-		{
-			return new UnlitMaterial
-			{
-				DiffuseColor = Color.White
-			};
-		}
-
-		return new BlinnPhongMaterial
-		{
-			DiffuseColor = material.DiffuseColor,
-			SpecularColor = material.SpecularColor,
-			SpecularPower = material.Shininess,
-			EmissiveColor = material.EmissiveColor,
-			DiffuseTexture = material.DiffuseTexture,
-			SpecularTexture = material.SpecularTexture,
-			NormalTexture = material.NormalTexture
-		};
-	}
-
 	public void UpdateCameraInput(float elapsedSeconds)
 	{
 		if (_sceneNode != null)

@@ -38,6 +38,7 @@ public class NifViewerGame : Game
 
 		MyraEnvironment.Game = this;
 		Nrs.Game = this;
+		// Nrs.DebugSettings.DrawBoundingBoxes = true;
 
 		_fileSystem = new SkyrimFileSystem(_skyrimFolder);
 		_mainForm = new MainForm(GraphicsDevice, _fileSystem);
