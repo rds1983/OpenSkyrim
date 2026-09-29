@@ -212,17 +212,13 @@ public partial class SkyrimFileSystem
 			return SrtTransform.Identity;
 		}
 
-		var result = new SrtTransform();
-
-		result.Translation = node.Translation.ToVector3();
-		result.Scale = new Vector3(node.Scale);
-
 		Matrix rotationMatrix = FromMatrix33(node.Rotation);
-		var q = Quaternion.CreateFromRotationMatrix(rotationMatrix);
-		var angles = q.ToEulerAngles();
-		result.Rotation = Quaternion.CreateFromYawPitchRoll(angles.Y, angles.X, angles.Z);
-
-		return result;
+		return new SrtTransform
+		{
+			Translation = node.Translation.ToVector3(),
+			Scale = new Vector3(node.Scale),
+			Rotation = Quaternion.CreateFromRotationMatrix(rotationMatrix)
+		};
 	}
 
 	private static Matrix FromMatrix33(NiflySharp.Structs.Matrix33 rotation)

@@ -151,7 +151,7 @@ public sealed class SkyrimSceneBuilder
 		node.Translation = placement.Position.ToVector3();
 
 		var rot = placement.Rotation.ToVector3().ToDegrees();
-		node.Rotation = new Vector3(rot.X, rot.Y, -rot.Z);
+		node.Rotation = new Vector3(rot.X, rot.Y, rot.Z);
 		if (placed.Scale != null)
 		{
 			node.Scale = new Vector3(placed.Scale.Value);
