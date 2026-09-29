@@ -1,13 +1,9 @@
 using System;
-using System.Collections.Generic;
-using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
-using Nursia;
-using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
@@ -17,8 +13,6 @@ namespace OpenSkyrim.NifViewer;
 
 public class DrModelViewWidget : Widget
 {
-	private const int GridSize = 200;
-	private const int GridCellSize = 2;
 	private const int AxisesSize = 160;
 	private const float MoveSpeedReferenceDistance = 100f;
 
@@ -28,56 +22,6 @@ public class DrModelViewWidget : Widget
 	private SceneNode _sceneNode;
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
-	private MeshNode _gridMesh;
-
-	private MeshNode GridMesh
-	{
-		get
-		{
-			if (_gridMesh == null)
-			{
-				var vertices = new List<Vector3>();
-				var indices = new List<ushort>();
-
-				ushort idx = 0;
-				for (var x = -GridSize; x <= GridSize; x += GridCellSize)
-				{
-					vertices.Add(new Vector3(x, 0, -GridSize));
-					vertices.Add(new Vector3(x, 0, GridSize));
-
-					indices.Add(idx);
-					++idx;
-					indices.Add(idx);
-					++idx;
-				}
-
-				for (var z = -GridSize; z <= GridSize; z += GridCellSize)
-				{
-					vertices.Add(new Vector3(-GridSize, 0, z));
-					vertices.Add(new Vector3(GridSize, 0, z));
-
-					indices.Add(idx);
-					++idx;
-					indices.Add(idx);
-					++idx;
-				}
-
-				var mesh = new DrMeshPart(Nrs.GraphicsDevice, vertices.ToArray(), indices.ToArray(), PrimitiveType.LineList);
-
-				_gridMesh = new MeshNode
-				{
-					Mesh = mesh,
-					Material = new UnlitMaterial
-					{
-						DiffuseColor = Color.Green,
-						CastsShadows = false
-					},
-				};
-			}
-
-			return _gridMesh;
-		}
-	}
 
 	public DrModelViewWidget()
 	{
@@ -91,7 +35,6 @@ public class DrModelViewWidget : Widget
 		var root = new SceneNode();
 		root.Children.Add(new DirectLight { Rotation = new Vector3(45, 45, 0), CastsShadow = false });
 		root.Children.Add(new DirectLight { Rotation = new Vector3(225, 45, 0), CastsShadow = false });
-		root.Children.Add(GridMesh);
 
 		_scene.Root = root;
 		_scene.Camera = _camera;
