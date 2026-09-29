@@ -46,11 +46,6 @@ public partial class SkyrimFileSystem
 	{
 		var nifFile = LoadNif(nifStream);
 
-		if (rootName.Contains("CounterCornerIn01"))
-		{
-			var k = 5;
-		}
-
 		var rootNodes = nifFile.GetRootNodes().ToList();
 
 		DrModelBone root;
@@ -103,7 +98,8 @@ public partial class SkyrimFileSystem
 			var children = new List<DrModelBone>(niNode.Children.Count);
 			for (var i = 0; i < niNode.Children.Count; i++)
 			{
-				var child = nifFile.GetBlock(niNode.Children.GetBlockRef(i));
+				var blockRef = niNode.Children.GetBlockRef(i);
+				var child = nifFile.GetBlock(blockRef);
 				if (child != null)
 				{
 					children.Add(CreateBone(nifFile, child));
@@ -134,9 +130,9 @@ public partial class SkyrimFileSystem
 		for (var i = 0; i < positions.Count; i++)
 		{
 			meshBuilder.AddVertex(new VertexPositionNormalTexture(
-				ToVector3(positions[i]),
-				normals != null && normals.Count > i ? ToVector3(normals[i]) : Vector3.Up,
-				uvs != null && uvs.Count > i ? ToVector2(uvs[i]) : Vector2.Zero));
+				positions[i].ToVector3(),
+				normals != null && normals.Count > i ? normals[i].ToVector3() : Vector3.Up,
+				uvs != null && uvs.Count > i ? uvs[i].ToVector2() : Vector2.Zero));
 		}
 
 		if (shape.Triangles != null)
@@ -212,27 +208,16 @@ public partial class SkyrimFileSystem
 			return SrtTransform.Identity;
 		}
 
-		Matrix rotationMatrix = FromMatrix33(node.Rotation);
 		return new SrtTransform
 		{
 			Translation = node.Translation.ToVector3(),
 			Scale = new Vector3(node.Scale),
-			Rotation = Quaternion.CreateFromRotationMatrix(rotationMatrix)
+
+			// For some reason, if I ignore models' internal rotations(I set to Identity in the model loader)
+			// And rotate in negative direction over Z axis in locations
+			// Then it is placed correctly
+			Rotation = Quaternion.Identity
 		};
-	}
-
-	private static Matrix FromMatrix33(NiflySharp.Structs.Matrix33 rotation)
-	{
-		// NIF rotation matrices are stored column-major (nif.xml field order:
-		// m11, m21, m31, m12, m22, m32, m13, m23, m33); the names follow the
-		// logical (row, column), so the XNA (row-vector) matrix is the transpose.
-		var rot = new Matrix(
-			rotation.M11, rotation.M21, rotation.M31, 0,
-			rotation.M12, rotation.M22, rotation.M32, 0,
-			rotation.M13, rotation.M23, rotation.M33, 0,
-			0, 0, 0, 1);
-
-		return rot;
 	}
 
 	private static List<string> GetTexturePaths(NifFile nifFile, INiShape shape)

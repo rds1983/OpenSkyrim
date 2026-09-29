@@ -34,7 +34,8 @@ public sealed class SkyrimSceneBuilder
 		var rootNode = new SceneNode()
 		{
 			Id = name,
-			Rotation = new Vector3(-90, 0, 0)   // This transform is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
+			// NIF data is Z-up; Nursia is Y-up, hence the -90 pitch about X.
+			Rotation = new Vector3(-90, 0, 0)
 		};
 
 		foreach (var placed in EnumeratePlaced(cell))
@@ -151,7 +152,11 @@ public sealed class SkyrimSceneBuilder
 		node.Translation = placement.Position.ToVector3();
 
 		var rot = placement.Rotation.ToVector3().ToDegrees();
-		node.Rotation = new Vector3(rot.X, rot.Y, rot.Z);
+
+		// For some reason, if I ignore models' internal rotations(I set to Identity in the model loader)
+		// And rotate in negative direction over Z axis in locations
+		// Then it is placed correctly
+		node.Rotation = new Vector3(rot.X, rot.Y, -rot.Z);
 		if (placed.Scale != null)
 		{
 			node.Scale = new Vector3(placed.Scale.Value);

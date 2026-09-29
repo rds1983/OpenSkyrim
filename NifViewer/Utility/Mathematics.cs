@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using NiflySharp.Structs;
 using Noggog;
 using System;
 
@@ -8,6 +9,7 @@ internal static class Mathematics
 {
 	public static Vector3 ToVector3(this P3Float v) => new Vector3(v.X, v.Y, v.Z);
 	public static Vector3 ToVector3(this System.Numerics.Vector3 v) => new Vector3(v.X, v.Y, v.Z);
+	public static Vector2 ToVector2(this TexCoord v) => new Vector2(v.U, v.V);
 
 	public static Vector3 ToDegrees(this Vector3 v) => new Vector3(MathHelper.ToDegrees(v.X), MathHelper.ToDegrees(v.Y), MathHelper.ToDegrees(v.Z));
 
