@@ -5,7 +5,6 @@ using Microsoft.Xna.Framework;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
-using Noggog;
 using Nursia.SceneGraph;
 using OpenSkyrim.NifViewer.Utility;
 
@@ -35,7 +34,7 @@ public sealed class SkyrimSceneBuilder
 		var rootNode = new SceneNode()
 		{
 			Id = name,
-			Rotation = new Vector3(-90, 0, 0)	// This transform is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
+			Rotation = new Vector3(-90, 0, 0)   // This transform is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
 		};
 
 		foreach (var placed in EnumeratePlaced(cell))
@@ -149,11 +148,8 @@ public sealed class SkyrimSceneBuilder
 			return;
 		}
 
-		var v = placement.Position.ToVector3();
-		node.Translation = new Vector3(v.X, v.Y, v.Z);
-		 
-		v = placement.Rotation.ToVector3();
-		node.Rotation = new Vector3(v.X, v.Y, -v.Z).ToDegrees();    // "-Z" is required, since Skyrim coordinate system Z axis points up, while Nursia "up" is Y axis
+		node.Translation = placement.Position.ToVector3();
+		node.Rotation = placement.Rotation.ToVector3().ToDegrees();
 		if (placed.Scale != null)
 		{
 			node.Scale = new Vector3(placed.Scale.Value);
