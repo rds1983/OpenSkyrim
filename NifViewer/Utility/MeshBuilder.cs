@@ -57,10 +57,12 @@ internal class MeshBuilder
 
 			for (var i = 0; i < Vertices.Count; ++i)
 			{
-				var v = Vertices[i];
-				v.TextureCoordinate.X = 1.0f - v.TextureCoordinate.X;
+/*				var v = Vertices[i];
 
-				Vertices[i] = v;
+				v.Position.Z = -v.Position.Z;
+//				v.TextureCoordinate.X = 1.0f - v.TextureCoordinate.X;
+
+				Vertices[i] = v;*/
 			}
 		}
 

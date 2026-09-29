@@ -5,9 +5,10 @@ using NifViewer.Utility;
 using NiflySharp;
 using NiflySharp.Blocks;
 using Nursia;
-using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using OpenSkyrim.NifViewer.Utility;
 
 namespace OpenSkyrim.NifViewer;
 
@@ -44,15 +45,31 @@ public partial class SkyrimFileSystem
 	private DrModel LoadNifModel(Stream nifStream, string rootName)
 	{
 		var nifFile = LoadNif(nifStream);
-		var root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
 
-		var children = new List<DrModelBone>();
-		foreach (var rootNode in nifFile.GetRootNodes())
+		if (rootName.Contains("CounterCornerIn01"))
 		{
-			children.Add(CreateBone(nifFile, rootNode));
+			var k = 5;
 		}
 
-		root.Children = children.ToArray();
+		var rootNodes = nifFile.GetRootNodes().ToList();
+
+		DrModelBone root;
+		if (rootNodes.Count == 1)
+		{
+			root = CreateBone(nifFile, rootNodes[0]);
+		}
+		else
+		{
+			root = new DrModelBone(string.IsNullOrWhiteSpace(rootName) ? "NifModel" : rootName);
+			var children = new List<DrModelBone>();
+			foreach (var rootNode in rootNodes)
+			{
+				children.Add(CreateBone(nifFile, rootNode));
+			}
+
+			root.Children = children.ToArray();
+		}
+
 		return new DrModel(root);
 	}
 
@@ -75,12 +92,13 @@ public partial class SkyrimFileSystem
 	private DrModelBone CreateBone(NifFile nifFile, INiObject node)
 	{
 		var mesh = node is INiShape shape ? CreateMesh(nifFile, shape) : null;
+		var transform = GetLocalTransform(node);
 		var bone = new DrModelBone(GetNodeName(node), mesh)
 		{
-			DefaultPose = new SrtTransform(GetLocalTransform(node))
+			DefaultPose = transform
 		};
 
-		if (node is NiNode niNode)
+		if (node is NiNode niNode && niNode.Children.Count > 0)
 		{
 			var children = new List<DrModelBone>(niNode.Children.Count);
 			for (var i = 0; i < niNode.Children.Count; i++)
@@ -187,17 +205,24 @@ public partial class SkyrimFileSystem
 		return string.IsNullOrWhiteSpace(name) ? node.GetType().Name : name;
 	}
 
-	private static Matrix GetLocalTransform(INiObject obj)
+	private static SrtTransform GetLocalTransform(INiObject obj)
 	{
 		if (obj is not NiAVObject node)
 		{
-			return Matrix.Identity;
+			return SrtTransform.Identity;
 		}
 
-		var translation = node.Translation;
-		return Matrix.CreateScale(node.Scale)
-			* FromMatrix33(node.Rotation)
-			* Matrix.CreateTranslation(translation.X, translation.Y, translation.Z);
+		var result = new SrtTransform();
+
+		result.Translation = node.Translation.ToVector3();
+		result.Scale = new Vector3(node.Scale);
+
+		Matrix rotationMatrix = FromMatrix33(node.Rotation);
+		var q = Quaternion.CreateFromRotationMatrix(rotationMatrix);
+		var angles = q.ToEulerAngles();
+		result.Rotation = Quaternion.CreateFromYawPitchRoll(angles.Y, angles.X, angles.Z);
+
+		return result;
 	}
 
 	private static Matrix FromMatrix33(NiflySharp.Structs.Matrix33 rotation)
@@ -205,11 +230,13 @@ public partial class SkyrimFileSystem
 		// NIF rotation matrices are stored column-major (nif.xml field order:
 		// m11, m21, m31, m12, m22, m32, m13, m23, m33); the names follow the
 		// logical (row, column), so the XNA (row-vector) matrix is the transpose.
-		return new Matrix(
+		var rot = new Matrix(
 			rotation.M11, rotation.M21, rotation.M31, 0,
 			rotation.M12, rotation.M22, rotation.M32, 0,
 			rotation.M13, rotation.M23, rotation.M33, 0,
 			0, 0, 0, 1);
+
+		return rot;
 	}
 
 	private static List<string> GetTexturePaths(NifFile nifFile, INiShape shape)
