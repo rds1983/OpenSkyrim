@@ -14,7 +14,6 @@ namespace OpenSkyrim.NifViewer;
 public class DrModelViewWidget : Widget
 {
 	private const int AxisesSize = 160;
-	private const float MoveSpeedReferenceDistance = 100f;
 
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
@@ -27,7 +26,7 @@ public class DrModelViewWidget : Widget
 	{
 		_cameraController = new CameraInputController(_camera)
 		{
-			MoveSpeed = 100.0f,
+			MoveSpeed = 200.0f,
 			RotationSpeed = 0.15f,
 			SprintMultiplier = 2.5f
 		};
