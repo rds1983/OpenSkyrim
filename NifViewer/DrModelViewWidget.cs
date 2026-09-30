@@ -27,7 +27,7 @@ public class DrModelViewWidget : Widget
 	{
 		_cameraController = new CameraInputController(_camera)
 		{
-			MoveSpeed = 2.5f,
+			MoveSpeed = 100.0f,
 			RotationSpeed = 0.15f,
 			SprintMultiplier = 2.5f
 		};
@@ -40,7 +40,7 @@ public class DrModelViewWidget : Widget
 		_scene.Camera = _camera;
 		_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
 		_camera.NearPlane = 0.1f;
-		_camera.FarPlane = 1000f;
+		_camera.FarPlane = 10000f;
 
 		_sceneAxises = new Scene
 		{
@@ -118,7 +118,6 @@ public class DrModelViewWidget : Widget
 		if (_sceneNode == null)
 		{
 			_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
-			_cameraController.FocusPoint = null;
 			return;
 		}
 
@@ -135,9 +134,5 @@ public class DrModelViewWidget : Widget
 		var distance = Math.Max(size * 1.75f, 5f);
 
 		_camera.View = Matrix.CreateLookAt(new Vector3(center.X, center.Y, center.Z + distance), center, Vector3.Up);
-		_cameraController.FocusPoint = center;
-		_cameraController.MoveSpeedFactor = Math.Min(1f, MoveSpeedReferenceDistance / Math.Max(distance, 1f));
-		_camera.NearPlane = Math.Max(0.01f, size / 1000f);
-		_camera.FarPlane = Math.Max(1000f, size * 20f);
 	}
 }
