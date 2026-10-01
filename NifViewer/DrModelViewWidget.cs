@@ -1,4 +1,5 @@
 using System;
+using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Myra;
@@ -15,10 +16,15 @@ public class DrModelViewWidget : Widget
 {
 	private const int AxisesSize = 160;
 
+	// Skyrim uses 1 unit = 1.428 cm, so an actor of height 1.00 is 128 units (1.83 m)
+	// tall and its eyes sit at roughly 118 units.
+	private const float PlayerEyeHeight = 118f;
+
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
 	private readonly Scene _sceneAxises;
 	private SceneNode _sceneNode;
+	private SrtTransform? _playerStart;
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
 
@@ -64,6 +70,20 @@ public class DrModelViewWidget : Widget
 				_scene.Root.Children.Add(_sceneNode);
 			}
 
+			ResetCamera();
+		}
+	}
+
+	/// <summary>
+	/// Gets or sets the world transform of where the player appears in the loaded location.
+	/// When set, the camera is placed there at eye height instead of framing the scene.
+	/// </summary>
+	public SrtTransform? PlayerStart
+	{
+		get => _playerStart;
+		set
+		{
+			_playerStart = value;
 			ResetCamera();
 		}
 	}
@@ -120,6 +140,11 @@ public class DrModelViewWidget : Widget
 			return;
 		}
 
+		if (ResetCameraToPlayerStart())
+		{
+			return;
+		}
+
 		var boundingBox = _sceneNode.FullBoundingBox;
 		if (!boundingBox.HasValue)
 		{
@@ -133,5 +158,35 @@ public class DrModelViewWidget : Widget
 		var distance = Math.Max(size * 1.75f, 5f);
 
 		_camera.View = Matrix.CreateLookAt(new Vector3(center.X, center.Y, center.Z + distance), center, Vector3.Up);
+	}
+
+	private bool ResetCameraToPlayerStart()
+	{
+		var playerStart = _playerStart;
+		if (playerStart == null)
+		{
+			return false;
+		}
+
+		var transform = playerStart.Value;
+
+		// Placements are Z-up, so the direction the player faces is the local +Y axis.
+		var forward = Vector3.Transform(Vector3.UnitY, transform.Rotation);
+		if (forward.LengthSquared() <= 0f)
+		{
+			return false;
+		}
+
+		forward.Normalize();
+
+		// SceneNode.Rotation is pitch (X) and yaw (Y); in FNA a yaw of +Y turns the
+		// camera towards -X, and +X pitches it up.
+		_camera.Translation = transform.Translation + Vector3.Up * PlayerEyeHeight;
+		_camera.Rotation = new Vector3(
+			MathHelper.ToDegrees(MathF.Asin(MathHelper.Clamp(forward.Y, -1f, 1f))),
+			MathHelper.ToDegrees(MathF.Atan2(-forward.X, -forward.Z)),
+			0f);
+
+		return true;
 	}
 }

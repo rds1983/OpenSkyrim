@@ -170,6 +170,7 @@ public class MainForm : Grid
 		catch (Exception ex)
 		{
 			OSK.LogError($"Failed to load '{path}': {ex.Message}");
+			_viewer.PlayerStart = null;
 			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}
@@ -188,12 +189,16 @@ public class MainForm : Grid
 			}
 
 			var scene = _sceneBuilder.Build(world.LinkCache, location.Cell);
+			_viewer.PlayerStart = _sceneBuilder.PlayerStart;
 			_viewer.Node = scene;
-			_statusLabel.Text = $"Loaded {_sceneBuilder.PlacedObjectCount} object(s) ({_sceneBuilder.LoadedModelCount} mesh group(s)) from {location.Name}";
+
+			var start = _sceneBuilder.PlayerStart != null ? ", player start" : ", no player start";
+			_statusLabel.Text = $"Loaded {_sceneBuilder.PlacedObjectCount} object(s) ({_sceneBuilder.LoadedModelCount} mesh group(s)){start} from {location.Name}";
 		}
 		catch (Exception ex)
 		{
 			OSK.LogError($"Failed to load '{location.Name}': {ex.Message}");
+			_viewer.PlayerStart = null;
 			_viewer.Node = null;
 			_statusLabel.Text = ex.Message;
 		}
