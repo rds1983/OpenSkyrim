@@ -1,7 +1,9 @@
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
+using Myra.Graphics2D.UI.Data;
 using Nursia.SceneGraph;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,13 +15,12 @@ public class MainForm : Grid
 	private const int LocationsSource = 0;
 	private const int ModelsSource = 1;
 
-	private readonly SkyrimFileSystem _fileSystem;
+private readonly SkyrimFileSystem _fileSystem;
 	private readonly SkyrimSceneBuilder _sceneBuilder;
 	private readonly object _skyrimWorldLock = new object();
 
-	private ListView _listView;
 	private ComboView _sourceCombo;
-	private TextBox _filterTextBox;
+	private DataGrid _grid;
 	private DrModelViewWidget _viewer;
 	private Label _headerLabel;
 	private Label _countLabel;
@@ -29,12 +30,11 @@ public class MainForm : Grid
 	private readonly Label _cameraPositionLabel;
 	private readonly Label _cameraYawLabel;
 	private readonly Label _cameraPitchLabel;
+	private readonly Label _cameraForwardLabel;
 
 	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
-	private volatile ListView _pendingListView;
-	private bool _filterPopulatePending;
-	private float _filterPopulateDelay;
+	private volatile List<Entry> _pendingData;
 
 	public MainForm(SkyrimFileSystem fileSystem)
 	{
@@ -71,18 +71,24 @@ public class MainForm : Grid
 		_sourceCombo.Widgets.Add(new Label { Text = "Locations" });
 		_sourceCombo.Widgets.Add(new Label { Text = "Models" });
 		_sourceCombo.SelectedIndex = LocationsSource;
-		_sourceCombo.SelectedIndexChanged += (s, a) =>
+		_sourceCombo.SelectedIndexChanged += (s, a) => QueuePopulateData();
+
+		// The DataGrid draws a filter row underneath its header, so per-column filtering and
+		// header sorting come from the grid itself rather than a separate text box.
+		_grid = new DataGrid
 		{
-			_filterPopulatePending = false;
-			QueuePopulateListView();
+			HorizontalAlignment = HorizontalAlignment.Stretch,
+			VerticalAlignment = VerticalAlignment.Stretch,
+			FillColumnIndex = 0,
+			Columns = new DataGridColumnBase[]
+			{
+				new DataGridTextColumn(nameof(Entry.Name), "Name", 100)
+			},
+			HasHeader = false,
+			IndexColumnWidth = null
 		};
 
-		_filterTextBox = new TextBox
-		{
-			HorizontalAlignment = HorizontalAlignment.Stretch
-		};
-
-		_filterTextBox.TextChanged += (s, a) => QueuePopulateListViewDebounced();
+		_grid.SelectedIndexChanged += (s, a) => OnEntrySelected();
 
 		_viewer = new DrModelViewWidget
 		{
@@ -98,6 +104,7 @@ public class MainForm : Grid
 		_cameraPositionLabel = new Label { Text = "Position" };
 		_cameraYawLabel = new Label { Text = "Yaw" };
 		_cameraPitchLabel = new Label { Text = "Pitch" };
+		_cameraForwardLabel = new Label { Text = "Forward" };
 
 		var cameraInfoPanel = new VerticalStackPanel
 		{
@@ -115,6 +122,7 @@ public class MainForm : Grid
 		cameraInfoPanel.Widgets.Add(_cameraPositionLabel);
 		cameraInfoPanel.Widgets.Add(_cameraYawLabel);
 		cameraInfoPanel.Widgets.Add(_cameraPitchLabel);
+		cameraInfoPanel.Widgets.Add(_cameraForwardLabel);
 
 		// The panel draws its children on top of each other, so the camera information is an
 		// overlay on the viewer rather than sitting beside it.
@@ -130,7 +138,9 @@ public class MainForm : Grid
 		};
 
 		_leftPanel.Widgets.Add(_sourceCombo);
-		_leftPanel.Widgets.Add(_filterTextBox);
+
+		StackPanel.SetProportionType(_grid, ProportionType.Fill);
+		_leftPanel.Widgets.Add(_grid);
 
 		mainSplit.Widgets.Add(_leftPanel);
 		mainSplit.Widgets.Add(viewerPanel);
@@ -154,13 +164,12 @@ public class MainForm : Grid
 		Widgets.Add(mainSplit);
 		Widgets.Add(_statusLabel);
 
-		QueuePopulateListView();
+		QueuePopulateData();
 	}
 
 	public void Update(float elapsedSeconds)
 	{
-		ApplyFilterDebounce(elapsedSeconds);
-		ApplyPendingListView();
+		ApplyPendingData();
 		_viewer.UpdateCameraInput(elapsedSeconds);
 		UpdateCameraInfo();
 	}
@@ -172,33 +181,31 @@ public class MainForm : Grid
 		// The controller owns the orientation as yaw and pitch relative to its up axis, which is
 		// more reliable here than reading a rotation back off the camera transform.
 		var eye = controller.Eye;
+		var forward = controller.Forward;
 
 		_cameraPositionLabel.Text = $"Position  {eye.X:0.0}, {eye.Y:0.0}, {eye.Z:0.0}";
 		_cameraYawLabel.Text = $"Yaw       {controller.Yaw:0.0} deg";
 		_cameraPitchLabel.Text = $"Pitch     {controller.Pitch:0.0} deg";
+		_cameraForwardLabel.Text = $"Forward   {forward.X:0.000}, {forward.Y:0.000}, {forward.Z:0.000}";
 	}
 
-	private void OnListItemSelected()
+	private void OnEntrySelected()
 	{
-		var item = _listView.SelectedItem as Label;
-		if (item == null)
+		if (!(_grid.SelectedItem is Entry entry))
 		{
 			return;
 		}
 
-		if (item.Tag is SkyrimLocation location)
+		if (entry.Location != null)
 		{
-			LoadLocation(location);
+			LoadLocation(entry.Location);
 			return;
 		}
 
-		var path = item.Tag?.ToString();
-		if (string.IsNullOrEmpty(path))
+		if (!string.IsNullOrEmpty(entry.ModelPath))
 		{
-			return;
+			LoadModel(entry.ModelPath);
 		}
-
-		LoadModel(path);
 	}
 
 	private void LoadModel(string path)
@@ -272,36 +279,11 @@ public class MainForm : Grid
 		}
 	}
 
-	private void QueuePopulateListViewDebounced(float delaySeconds = 1f)
+	private void QueuePopulateData()
 	{
-		_filterPopulatePending = true;
-		_filterPopulateDelay = delaySeconds;
-		_statusLabel.Text = "Populating list...";
-	}
-
-	private void ApplyFilterDebounce(float elapsedSeconds)
-	{
-		if (!_filterPopulatePending)
-		{
-			return;
-		}
-
-		_filterPopulateDelay -= elapsedSeconds;
-		if (_filterPopulateDelay > 0f)
-		{
-			return;
-		}
-
-		_filterPopulatePending = false;
-		QueuePopulateListView();
-	}
-
-	private void QueuePopulateListView()
-	{
-		var filter = _filterTextBox.Text;
 		var source = _sourceCombo.SelectedIndex;
 		var version = Interlocked.Increment(ref _populateVersion);
-		_pendingListView = null;
+		_pendingData = null;
 
 		_statusLabel.Text = "Populating list...";
 
@@ -309,24 +291,20 @@ public class MainForm : Grid
 		{
 			try
 			{
-				var listView = new ListView
-				{
-					HorizontalAlignment = HorizontalAlignment.Stretch,
-					VerticalAlignment = VerticalAlignment.Stretch
-				};
+				var data = new List<Entry>();
 
 				if (source == LocationsSource)
 				{
-					PopulateLocations(listView, filter);
+					PopulateLocations(data);
 				}
 				else
 				{
-					PopulateModels(listView, filter);
+					PopulateModels(data);
 				}
 
 				if (version == Volatile.Read(ref _populateVersion))
 				{
-					_pendingListView = listView;
+					_pendingData = data;
 				}
 			}
 			catch (Exception ex)
@@ -336,7 +314,7 @@ public class MainForm : Grid
 		});
 	}
 
-	private void PopulateModels(ListView listView, string filter)
+	private void PopulateModels(List<Entry> data)
 	{
 		foreach (var key in _fileSystem.Keys)
 		{
@@ -346,20 +324,11 @@ public class MainForm : Grid
 				continue;
 			}
 
-			if (!string.IsNullOrEmpty(filter) && key.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
-			{
-				continue;
-			}
-
-			listView.Widgets.Add(new Label
-			{
-				Text = key,
-				Tag = key
-			});
+			data.Add(new Entry(null, key));
 		}
 	}
 
-	private void PopulateLocations(ListView listView, string filter)
+	private void PopulateLocations(List<Entry> data)
 	{
 		var world = GetSkyrimWorld();
 		if (world == null)
@@ -369,40 +338,41 @@ public class MainForm : Grid
 
 		foreach (var location in world.Locations)
 		{
-			if (!string.IsNullOrEmpty(filter) && location.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0)
-			{
-				continue;
-			}
-
-			listView.Widgets.Add(new Label
-			{
-				Text = location.Name,
-				Tag = location
-			});
+			data.Add(new Entry(location, null));
 		}
 	}
 
-	private void ApplyPendingListView()
+	private void ApplyPendingData()
 	{
-		var listView = _pendingListView;
-		if (listView == null)
+		var data = _pendingData;
+		if (data == null)
 		{
 			return;
 		}
 
-		_pendingListView = null;
-
-		if (_listView != null)
-		{
-			_leftPanel.Widgets.Remove(_listView);
-		}
-
-		listView.SelectedIndexChanged += (s, a) => OnListItemSelected();
-
-		_leftPanel.Widgets.Add(listView);
-		_listView = listView;
+		_pendingData = null;
+		_grid.Data = data;
 
 		var noun = _sourceCombo.SelectedIndex == LocationsSource ? "locations" : "models";
-		_statusLabel.Text = $"There are {_listView.Widgets.Count} {noun}.";
+		_statusLabel.Text = $"There are {data.Count} {noun}.";
+	}
+
+	private sealed class Entry
+	{
+		public Entry(SkyrimLocation location, string modelPath)
+		{
+			Location = location;
+			ModelPath = modelPath;
+			Name = location?.Name ?? modelPath;
+		}
+
+		/// <summary>
+		/// The value the grid's text column binds to, so the filter row matches on it.
+		/// </summary>
+		public string Name { get; }
+
+		public SkyrimLocation Location { get; }
+
+		public string ModelPath { get; }
 	}
 }
