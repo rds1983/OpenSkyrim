@@ -85,7 +85,8 @@ private readonly SkyrimFileSystem _fileSystem;
 				new DataGridTextColumn(nameof(Entry.Name), "Name", 100)
 			},
 			HasHeader = false,
-			IndexColumnWidth = null
+			IndexColumnWidth = null,
+			AcceptsKeyboardFocus = true
 		};
 
 		_grid.SelectedIndexChanged += (s, a) => OnEntrySelected();
@@ -244,7 +245,9 @@ private readonly SkyrimFileSystem _fileSystem;
 			_viewer.PlayerStart = _sceneBuilder.PlayerStart;
 			_viewer.Node = scene;
 
-			var start = _sceneBuilder.PlayerStart != null ? ", player start" : ", no player start";
+			var start = _sceneBuilder.PlayerStart != null
+				? $", start: {_sceneBuilder.PlayerStartSource}"
+				: ", no player start";
 			_statusLabel.Text = $"Loaded {_sceneBuilder.PlacedObjectCount} object(s) ({_sceneBuilder.LoadedModelCount} mesh group(s)){start} from {location.Name}";
 		}
 		catch (Exception ex)

@@ -15,10 +15,6 @@ public sealed class SkyrimSceneBuilder
 {
 	private const int MaxPlacedObjects = 4000;
 
-	// Skyrim spawns the player at the cell's XMarker reference. The marker also has a
-	// model (MarkerX.nif), so the placed object pass renders it as a mesh already.
-	private const string PlayerStartMarkerEditorId = "XMarker";
-
 	private readonly SkyrimFileSystem _fileSystem;
 
 	public int PlacedObjectCount { get; private set; }
@@ -30,6 +26,12 @@ public sealed class SkyrimSceneBuilder
 	/// </summary>
 	public SrtTransform? PlayerStart { get; private set; }
 
+	/// <summary>
+	/// Gets a short description of which hint <see cref="PlayerStart"/> was taken from,
+	/// for diagnostics.
+	/// </summary>
+	public string PlayerStartSource { get; private set; }
+
 	public SkyrimSceneBuilder(SkyrimFileSystem fileSystem)
 	{
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
@@ -40,6 +42,7 @@ public sealed class SkyrimSceneBuilder
 		PlacedObjectCount = 0;
 		LoadedModelCount = 0;
 		PlayerStart = null;
+		PlayerStartSource = null;
 
 		var name = string.IsNullOrWhiteSpace(cell.EditorID) ? "Location" : cell.EditorID;
 
@@ -48,9 +51,14 @@ public sealed class SkyrimSceneBuilder
 			Id = name
 		};
 
-		PlayerStart = CreatePlayerStart(linkCache, cell);
+		// The full set of placements is needed twice: the start is resolved from all of them,
+		// while the scene only takes the first MaxPlacedObjects.
+		var placedObjects = EnumeratePlaced(cell).AsList();
 
-		foreach (var placed in EnumeratePlaced(cell))
+		PlayerStart = PlayerStartResolver.Resolve(linkCache, placedObjects, out var startSource);
+		PlayerStartSource = startSource;
+
+		foreach (var placed in placedObjects)
 		{
 			if (PlacedObjectCount >= MaxPlacedObjects)
 			{
@@ -66,51 +74,6 @@ public sealed class SkyrimSceneBuilder
 		}
 
 		return rootNode;
-	}
-
-	private static SrtTransform? CreatePlayerStart(ILinkCache linkCache, ICellGetter cell)
-	{
-		var all = EnumeratePlaced(cell).AsList();
-
-		for(var i = 0; i < all.Count; ++i)
-		{
-			var placed = all[i];
-			if (placed is not IPlacedObjectGetter placedObject)
-			{
-				continue;
-			}
-
-			var baseLink = placedObject.Base;
-			if (baseLink == null || baseLink.IsNull)
-			{
-				continue;
-			}
-
-			if (!baseLink.TryResolve(linkCache, out var baseRecord) || baseRecord == null)
-			{
-				continue;
-			}
-
-			if (!string.Equals(baseRecord.EditorID, PlayerStartMarkerEditorId, StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
-
-			var placement = placedObject.Placement;
-			if (placement == null)
-			{
-				continue;
-			}
-
-			// The location root carries no transform, so the player start is in the same
-			// space as the props and needs no conversion.
-			return new SrtTransform(
-				placement.Position.ToVector3(),
-				ToQuaternion(GetRotation(placement)),
-				placedObject.Scale != null ? new Vector3(placedObject.Scale.Value) : Vector3.One);
-		}
-
-		return null;
 	}
 
 	private SceneNode CreateChild(ILinkCache linkCache, IPlacedGetter placed)
@@ -218,13 +181,6 @@ public sealed class SkyrimSceneBuilder
 		}
 	}
 
-	private static Quaternion ToQuaternion(Vector3 degrees)
-	{
-		var radians = degrees.ToRadians();
-
-		// Same order SceneNode uses, see SceneNode.LocalTransform.
-		return Quaternion.CreateFromYawPitchRoll(radians.Y, radians.X, radians.Z);
-	}
 
 	private static Vector3 GetRotation(IPlacementGetter placement)
 	{
@@ -236,3 +192,4 @@ public sealed class SkyrimSceneBuilder
 		return new Vector3(rot.X, rot.Y, -rot.Z);
 	}
 }
+
