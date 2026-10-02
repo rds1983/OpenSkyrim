@@ -26,6 +26,10 @@ public class MainForm : Grid
 	private Label _statusLabel;
 	private readonly VerticalStackPanel _leftPanel;
 
+	private readonly Label _cameraPositionLabel;
+	private readonly Label _cameraYawLabel;
+	private readonly Label _cameraPitchLabel;
+
 	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
 	private volatile ListView _pendingListView;
@@ -91,6 +95,33 @@ public class MainForm : Grid
 			HorizontalAlignment = HorizontalAlignment.Stretch
 		};
 
+		_cameraPositionLabel = new Label { Text = "Position" };
+		_cameraYawLabel = new Label { Text = "Yaw" };
+		_cameraPitchLabel = new Label { Text = "Pitch" };
+
+		var cameraInfoPanel = new VerticalStackPanel
+		{
+			Spacing = 4,
+
+			// A Panel arranges every child at its own bounds, so this padding is what insets the
+			// information from the corner of the viewer.
+			Padding = new Thickness(8)
+		};
+
+		cameraInfoPanel.Widgets.Add(new Label
+		{
+			Text = "Camera"
+		});
+		cameraInfoPanel.Widgets.Add(_cameraPositionLabel);
+		cameraInfoPanel.Widgets.Add(_cameraYawLabel);
+		cameraInfoPanel.Widgets.Add(_cameraPitchLabel);
+
+		// The panel draws its children on top of each other, so the camera information is an
+		// overlay on the viewer rather than sitting beside it.
+		var viewerPanel = new Panel();
+		viewerPanel.Widgets.Add(_viewer);
+		viewerPanel.Widgets.Add(cameraInfoPanel);
+
 		var mainSplit = new HorizontalSplitPane();
 
 		_leftPanel = new VerticalStackPanel
@@ -102,7 +133,7 @@ public class MainForm : Grid
 		_leftPanel.Widgets.Add(_filterTextBox);
 
 		mainSplit.Widgets.Add(_leftPanel);
-		mainSplit.Widgets.Add(_viewer);
+		mainSplit.Widgets.Add(viewerPanel);
 		mainSplit.SetSplitterPosition(0, 0.25f);
 
 
@@ -131,6 +162,20 @@ public class MainForm : Grid
 		ApplyFilterDebounce(elapsedSeconds);
 		ApplyPendingListView();
 		_viewer.UpdateCameraInput(elapsedSeconds);
+		UpdateCameraInfo();
+	}
+
+	private void UpdateCameraInfo()
+	{
+		var controller = _viewer.CameraController;
+
+		// The controller owns the orientation as yaw and pitch relative to its up axis, which is
+		// more reliable here than reading a rotation back off the camera transform.
+		var eye = controller.Eye;
+
+		_cameraPositionLabel.Text = $"Position  {eye.X:0.0}, {eye.Y:0.0}, {eye.Z:0.0}";
+		_cameraYawLabel.Text = $"Yaw       {controller.Yaw:0.0} deg";
+		_cameraPitchLabel.Text = $"Pitch     {controller.Pitch:0.0} deg";
 	}
 
 	private void OnListItemSelected()

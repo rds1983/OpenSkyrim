@@ -20,6 +20,12 @@ public class DrModelViewWidget : Widget
 	// tall and its eyes sit at roughly 118 units.
 	private const float PlayerEyeHeight = 118f;
 
+	private static readonly Vector3 WorldUp = new Vector3(0, 0, 1);
+
+	// Yaw of zero looks along +X, so start far enough back on -X for the origin to be ahead of
+	// the camera and the view to stay level rather than looking straight down the up axis.
+	private static readonly Vector3 DefaultEye = -Vector3.Right * 5f;
+
 	private readonly ForwardRenderer _renderer = new ForwardRenderer();
 	private readonly Scene _scene = new Scene();
 	private readonly Scene _sceneAxises;
@@ -34,7 +40,8 @@ public class DrModelViewWidget : Widget
 		{
 			MoveSpeed = 200.0f,
 			RotationSpeed = 0.15f,
-			SprintMultiplier = 2.5f
+			SprintMultiplier = 2.5f,
+			Up = WorldUp
 		};
 
 		var root = new SceneNode();
@@ -43,7 +50,7 @@ public class DrModelViewWidget : Widget
 
 		_scene.Root = root;
 		_scene.Camera = _camera;
-		_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
+		_cameraController.Eye = DefaultEye;
 		_camera.NearPlane = 0.1f;
 		_camera.FarPlane = 10000f;
 
@@ -52,6 +59,11 @@ public class DrModelViewWidget : Widget
 			Root = Resources.ModelAxises
 		};
 	}
+
+	/// <summary>
+	/// Gets the controller that owns the camera position and orientation.
+	/// </summary>
+	public CameraInputController CameraController => _cameraController;
 
 	public SceneNode Node
 	{
@@ -120,11 +132,13 @@ public class DrModelViewWidget : Widget
 		var axisesRoot = _sceneAxises.Root;
 		var axisesCamera = (Camera)_camera.Clone();
 
-		// Make the gizmo placed always in front of the camera
+		// Make the gizmo placed always in front of the camera. Moving the camera clears its
+		// view matrix, so it has to be rebuilt from the controller's orientation.
 		axisesCamera.Translation = Vector3.Zero;
-		var direction = axisesCamera.GlobalTransform.Forward;
-		direction.Normalize();
-		axisesRoot.Translation = direction * 2.5f;
+		axisesCamera.View = CameraInputController.CreateViewMatrix(
+			Vector3.Zero, _cameraController.Yaw, _cameraController.Pitch, WorldUp);
+
+		axisesRoot.Translation = _cameraController.Forward * 2.5f;
 
 		var axisesTarget = _sceneAxises.RenderToTarget(_renderer, axisesCamera, AxisesSize, AxisesSize);
 
@@ -136,7 +150,7 @@ public class DrModelViewWidget : Widget
 	{
 		if (_sceneNode == null)
 		{
-			_camera.View = Matrix.CreateLookAt(new Vector3(0, 0, 5), Vector3.Zero, Vector3.Up);
+			_cameraController.Eye = DefaultEye;
 			return;
 		}
 
@@ -157,7 +171,10 @@ public class DrModelViewWidget : Widget
 		var size = Math.Max(max.X - min.X, Math.Max(max.Y - min.Y, max.Z - min.Z));
 		var distance = Math.Max(size * 1.75f, 5f);
 
-		_camera.View = Matrix.CreateLookAt(new Vector3(center.X, center.Y, center.Z + distance), center, Vector3.Up);
+		// The world is Z-up, so step back horizontally rather than along an axis.
+		var eye = center - Vector3.Right * distance;
+		_cameraController.Eye = eye;
+		_cameraController.LookAlong(center - eye);
 	}
 
 	private bool ResetCameraToPlayerStart()
@@ -170,22 +187,16 @@ public class DrModelViewWidget : Widget
 
 		var transform = playerStart.Value;
 
-		// Placements are Z-up, so the direction the player faces is the local +Y axis.
+		// Placements are Z-up and so is the world, so the direction the player faces is
+		// the marker's local +Y axis.
 		var forward = Vector3.Transform(Vector3.UnitY, transform.Rotation);
 		if (forward.LengthSquared() <= 0f)
 		{
 			return false;
 		}
 
-		forward.Normalize();
-
-		// SceneNode.Rotation is pitch (X) and yaw (Y); in FNA a yaw of +Y turns the
-		// camera towards -X, and +X pitches it up.
-		_camera.Translation = transform.Translation + Vector3.Up * PlayerEyeHeight;
-		_camera.Rotation = new Vector3(
-			MathHelper.ToDegrees(MathF.Asin(MathHelper.Clamp(forward.Y, -1f, 1f))),
-			MathHelper.ToDegrees(MathF.Atan2(-forward.X, -forward.Z)),
-			0f);
+		_cameraController.Eye = transform.Translation + WorldUp * PlayerEyeHeight;
+		_cameraController.LookAlong(forward);
 
 		return true;
 	}

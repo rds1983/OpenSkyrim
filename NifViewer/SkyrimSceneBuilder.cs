@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DigitalRiseModel;
+using DynamicData.Kernel;
 using Microsoft.Xna.Framework;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
@@ -17,11 +18,6 @@ public sealed class SkyrimSceneBuilder
 	// Skyrim spawns the player at the cell's XMarker reference. The marker also has a
 	// model (MarkerX.nif), so the placed object pass renders it as a mesh already.
 	private const string PlayerStartMarkerEditorId = "XMarker";
-
-	// NIF data is Z-up; Nursia is Y-up, hence the -90 pitch about X. Placements are relative
-	// to the cell, so the player start has to be rotated by the same amount the location
-	// root node applies to its children.
-	private static readonly Vector3 LocationRootRotation = new Vector3(-90, 0, 0);
 
 	private readonly SkyrimFileSystem _fileSystem;
 
@@ -49,8 +45,7 @@ public sealed class SkyrimSceneBuilder
 
 		var rootNode = new SceneNode()
 		{
-			Id = name,
-			Rotation = LocationRootRotation
+			Id = name
 		};
 
 		PlayerStart = CreatePlayerStart(linkCache, cell);
@@ -75,8 +70,11 @@ public sealed class SkyrimSceneBuilder
 
 	private static SrtTransform? CreatePlayerStart(ILinkCache linkCache, ICellGetter cell)
 	{
-		foreach (var placed in EnumeratePlaced(cell))
+		var all = EnumeratePlaced(cell).AsList();
+
+		for(var i = 0; i < all.Count; ++i)
 		{
+			var placed = all[i];
 			if (placed is not IPlacedObjectGetter placedObject)
 			{
 				continue;
@@ -104,12 +102,12 @@ public sealed class SkyrimSceneBuilder
 				continue;
 			}
 
-			var rootRotation = ToQuaternion(LocationRootRotation);
-			var position = Vector3.Transform(placement.Position.ToVector3(), rootRotation);
-
-			var rotation = rootRotation * ToQuaternion(GetRotation(placement));
-
-			return new SrtTransform(position, rotation, Vector3.One);
+			// The location root carries no transform, so the player start is in the same
+			// space as the props and needs no conversion.
+			return new SrtTransform(
+				placement.Position.ToVector3(),
+				ToQuaternion(GetRotation(placement)),
+				placedObject.Scale != null ? new Vector3(placedObject.Scale.Value) : Vector3.One);
 		}
 
 		return null;
@@ -164,7 +162,6 @@ public sealed class SkyrimSceneBuilder
 		{
 			return null;
 		}
-
 
 		var boneName = $"{baseRecord.EditorID}";
 
