@@ -1,0 +1,37 @@
+<Project>
+  <Project.ExportOptions Namespace="OpenSkyrim.NifViewer.UI" Class="MainForm" FieldsVisibility="Private" />
+  <Grid RowSpacing="4" ColumnSpacing="8" Padding="8">
+    <Grid.ColumnsProportions>
+      <Proportion Type="Part" Value="1" />
+      <Proportion Type="Part" Value="2" />
+    </Grid.ColumnsProportions>
+    <Grid.RowsProportions>
+      <Proportion Type="Auto" />
+      <Proportion Type="Auto" />
+      <Proportion Type="Part" Value="1" />
+      <Proportion Type="Pixels" Value="24" />
+    </Grid.RowsProportions>
+    <Label Id="_headerLabel" Text="Skyrim folder: ..." HorizontalAlignment="Stretch" Grid.ColumnSpan="2" />
+    <Label Id="_countLabel" HorizontalAlignment="Stretch" Grid.Row="1" Grid.ColumnSpan="2" />
+    <HorizontalSplitPane Id="_mainSplit" Grid.Row="2" Grid.ColumnSpan="2">
+      <VerticalStackPanel Id="_leftPanel" Spacing="8">
+        <ComboView Id="_sourceCombo" HorizontalAlignment="Stretch">
+          <Label Text="Locations" />
+          <Label Text="Models" />
+        </ComboView>
+        <Panel Id="_gridContainer" StackPanel.ProportionType="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+      </VerticalStackPanel>
+      <Panel Id="_viewerPanel">
+        <Panel Id="_viewerContainer" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+        <VerticalStackPanel Id="_cameraInfoPanel" Spacing="4" Padding="8">
+          <Label Text="Camera" />
+          <Label Id="_cameraPositionLabel" Text="Position" />
+          <Label Id="_cameraYawLabel" Text="Yaw" />
+          <Label Id="_cameraPitchLabel" Text="Pitch" />
+          <Label Id="_cameraForwardLabel" Text="Forward" />
+        </VerticalStackPanel>
+      </Panel>
+    </HorizontalSplitPane>
+    <Label Id="_statusLabel" HorizontalAlignment="Stretch" Grid.Row="3" Grid.ColumnSpan="2" />
+  </Grid>
+</Project>

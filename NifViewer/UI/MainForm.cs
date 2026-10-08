@@ -1,4 +1,3 @@
-using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
 using Myra.Graphics2D.UI.Data;
 using Nursia.SceneGraph;
@@ -8,68 +7,31 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.NifViewer.UI;
 
-public class MainForm : Grid
+partial class MainForm
 {
 	private const int LocationsSource = 0;
 	private const int ModelsSource = 1;
 
-private readonly SkyrimFileSystem _fileSystem;
+	private readonly SkyrimFileSystem _fileSystem;
 	private readonly SkyrimSceneBuilder _sceneBuilder;
 	private readonly object _skyrimWorldLock = new object();
-
-	private ComboView _sourceCombo;
-	private DataGrid _grid;
-	private DrModelViewWidget _viewer;
-	private Label _headerLabel;
-	private Label _countLabel;
-	private Label _statusLabel;
-	private readonly VerticalStackPanel _leftPanel;
-
-	private readonly Label _cameraPositionLabel;
-	private readonly Label _cameraYawLabel;
-	private readonly Label _cameraPitchLabel;
-	private readonly Label _cameraForwardLabel;
 
 	private SkyrimWorld _skyrimWorld;
 	private int _populateVersion;
 	private volatile List<Entry> _pendingData;
 
+	private readonly DataGrid _grid;
+	private readonly DrModelViewWidget _viewer;
+
 	public MainForm(SkyrimFileSystem fileSystem)
 	{
+		BuildUI();
+
 		_fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
 		_sceneBuilder = new SkyrimSceneBuilder(_fileSystem);
 
-		RowSpacing = 4;
-		ColumnSpacing = 8;
-		Padding = new Thickness(8);
-
-		ColumnsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
-		ColumnsProportions.Add(new Proportion(ProportionType.Part, 2.0f));
-		RowsProportions.Add(new Proportion(ProportionType.Auto));
-		RowsProportions.Add(new Proportion(ProportionType.Auto));
-		RowsProportions.Add(new Proportion(ProportionType.Part, 1.0f));
-		RowsProportions.Add(new Proportion(ProportionType.Pixels, 24));
-
-		_headerLabel = new Label
-		{
-			Text = $"Skyrim folder: {_fileSystem.RootPath}",
-			HorizontalAlignment = HorizontalAlignment.Stretch
-		};
-
-		_countLabel = new Label
-		{
-			HorizontalAlignment = HorizontalAlignment.Stretch
-		};
-
-		_sourceCombo = new ComboView
-		{
-			HorizontalAlignment = HorizontalAlignment.Stretch
-		};
-
-		_sourceCombo.Widgets.Add(new Label { Text = "Locations" });
-		_sourceCombo.Widgets.Add(new Label { Text = "Models" });
 		_sourceCombo.SelectedIndex = LocationsSource;
 		_sourceCombo.SelectedIndexChanged += (s, a) => QueuePopulateData();
 
@@ -89,7 +51,10 @@ private readonly SkyrimFileSystem _fileSystem;
 			AcceptsKeyboardFocus = true
 		};
 
+		StackPanel.SetProportionType(_grid, ProportionType.Fill);
+
 		_grid.SelectedIndexChanged += (s, a) => OnEntrySelected();
+		_gridContainer.Widgets.Add(_grid);
 
 		_viewer = new DrModelViewWidget
 		{
@@ -97,73 +62,9 @@ private readonly SkyrimFileSystem _fileSystem;
 			VerticalAlignment = VerticalAlignment.Stretch,
 		};
 
-		_statusLabel = new Label
-		{
-			HorizontalAlignment = HorizontalAlignment.Stretch
-		};
+		_viewerContainer.Widgets.Add(_viewer);
 
-		_cameraPositionLabel = new Label { Text = "Position" };
-		_cameraYawLabel = new Label { Text = "Yaw" };
-		_cameraPitchLabel = new Label { Text = "Pitch" };
-		_cameraForwardLabel = new Label { Text = "Forward" };
-
-		var cameraInfoPanel = new VerticalStackPanel
-		{
-			Spacing = 4,
-
-			// A Panel arranges every child at its own bounds, so this padding is what insets the
-			// information from the corner of the viewer.
-			Padding = new Thickness(8)
-		};
-
-		cameraInfoPanel.Widgets.Add(new Label
-		{
-			Text = "Camera"
-		});
-		cameraInfoPanel.Widgets.Add(_cameraPositionLabel);
-		cameraInfoPanel.Widgets.Add(_cameraYawLabel);
-		cameraInfoPanel.Widgets.Add(_cameraPitchLabel);
-		cameraInfoPanel.Widgets.Add(_cameraForwardLabel);
-
-		// The panel draws its children on top of each other, so the camera information is an
-		// overlay on the viewer rather than sitting beside it.
-		var viewerPanel = new Panel();
-		viewerPanel.Widgets.Add(_viewer);
-		viewerPanel.Widgets.Add(cameraInfoPanel);
-
-		var mainSplit = new HorizontalSplitPane();
-
-		_leftPanel = new VerticalStackPanel
-		{
-			Spacing = 8
-		};
-
-		_leftPanel.Widgets.Add(_sourceCombo);
-
-		StackPanel.SetProportionType(_grid, ProportionType.Fill);
-		_leftPanel.Widgets.Add(_grid);
-
-		mainSplit.Widgets.Add(_leftPanel);
-		mainSplit.Widgets.Add(viewerPanel);
-		mainSplit.SetSplitterPosition(0, 0.25f);
-
-
-		Grid.SetColumn(_headerLabel, 0);
-		Grid.SetColumnSpan(_headerLabel, 2);
-		Grid.SetRow(_headerLabel, 0);
-		Grid.SetColumn(_countLabel, 0);
-		Grid.SetColumnSpan(_countLabel, 2);
-		Grid.SetRow(_countLabel, 1);
-		Grid.SetColumn(_statusLabel, 0);
-		Grid.SetRow(mainSplit, 2);
-		Grid.SetColumnSpan(mainSplit, 2);
-		Grid.SetColumnSpan(_statusLabel, 2);
-		Grid.SetRow(_statusLabel, 3);
-
-		Widgets.Add(_headerLabel);
-		Widgets.Add(_countLabel);
-		Widgets.Add(mainSplit);
-		Widgets.Add(_statusLabel);
+		_mainSplit.SetSplitterPosition(0, 0.25f);
 
 		QueuePopulateData();
 	}

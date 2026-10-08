@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Myra;
 using Myra.Graphics2D.UI;
 using Nursia;
+using OpenSkyrim.NifViewer.UI;
 
 namespace OpenSkyrim.NifViewer;
 
