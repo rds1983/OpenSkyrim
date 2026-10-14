@@ -20,6 +20,12 @@ public sealed class SkyrimPlacedObject
 	/// Gets the display name of the object (base record editor id, model path or form key).
 	/// </summary>
 	public string Name { get; init; }
+
+	/// <summary>
+	/// Gets or sets the scene node this object was placed as, or <c>null</c> when it was not
+	/// added to the scene (no model, missing file or beyond the scene's object cap).
+	/// </summary>
+	public SceneNode Node { get; set; }
 }
 
 public sealed class SkyrimSceneBuilder
@@ -77,17 +83,22 @@ public sealed class SkyrimSceneBuilder
 
 		PlacedObjects = BuildPlacedObjectList(linkCache, placedObjects);
 
-		foreach (var placed in placedObjects)
+		for (var i = 0; i < placedObjects.Count; ++i)
 		{
 			if (PlacedObjectCount >= MaxPlacedObjects)
 			{
 				break;
 			}
 
-			var child = CreateChild(linkCache, placed);
+			var child = CreateChild(linkCache, placedObjects[i]);
 			if (child != null)
 			{
 				rootNode.Children.Add(child);
+
+				// PlacedObjects is built from the same list in the same order, so the node can
+				// be linked back to its list entry for selection in the UI.
+				PlacedObjects[i].Node = child;
+
 				++PlacedObjectCount;
 			}
 		}

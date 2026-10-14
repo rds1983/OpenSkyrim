@@ -69,7 +69,8 @@ partial class MainForm
 		_grid.SelectedIndexChanged += (s, a) => OnEntrySelected();
 		_gridContainer.Widgets.Add(_grid);
 
-		// The placed-objects grid is display-only: selecting a row does nothing.
+		// The placed-objects grid lists the location's objects. Selecting a row only highlights
+		// the object in the viewer; nothing is loaded or moved.
 		_objectsGrid = new DataGrid
 		{
 			HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -83,6 +84,8 @@ partial class MainForm
 			IndexColumnWidth = null,
 			AcceptsKeyboardFocus = true
 		};
+
+		_objectsGrid.SelectedIndexChanged += (s, a) => OnPlacedObjectSelected();
 
 		_leftSplit = new VerticalSplitPane();
 		StackPanel.SetProportionType(_leftSplit, ProportionType.Fill);
@@ -143,6 +146,15 @@ partial class MainForm
 	}
 
 	/// <summary>
+	/// Highlights the selected placed object in the viewer with a selection box, or clears the
+	/// highlight when nothing is selected.
+	/// </summary>
+	private void OnPlacedObjectSelected()
+	{
+		_viewer.SelectedNode = (_objectsGrid.SelectedItem as SkyrimPlacedObject)?.Node;
+	}
+
+	/// <summary>
 	/// Splits the left panel so the entry grid shares it with the placed-objects grid, or puts
 	/// the entry grid back to filling the whole panel.
 	/// </summary>
@@ -169,6 +181,8 @@ partial class MainForm
 		{
 			_leftSplit.Widgets.Remove(_gridContainer);
 			_leftSplit.Widgets.Remove(_objectsGrid);
+
+			_viewer.SelectedNode = null;
 
 			_leftPanel.Widgets.Add(_gridContainer);
 			StackPanel.SetProportionType(_gridContainer, ProportionType.Fill);

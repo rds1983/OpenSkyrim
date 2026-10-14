@@ -30,6 +30,8 @@ public class DrModelViewWidget : Widget
 	private readonly Scene _scene = new Scene();
 	private readonly Scene _sceneAxises;
 	private SceneNode _sceneNode;
+	private SceneNode _selectedNode;
+	private SelectionBoxNode _selectionNode;
 	private SrtTransform? _playerStart;
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
@@ -76,6 +78,7 @@ public class DrModelViewWidget : Widget
 			}
 
 			_sceneNode = value;
+			_selectedNode = null;
 
 			if (_sceneNode != null)
 			{
@@ -84,6 +87,16 @@ public class DrModelViewWidget : Widget
 
 			ResetCamera();
 		}
+	}
+
+	/// <summary>
+	/// Gets or sets the node whose bounding box is highlighted with a wireframe box, or
+	/// <c>null</c> to clear the highlight.
+	/// </summary>
+	public SceneNode SelectedNode
+	{
+		get => _selectedNode;
+		set => _selectedNode = value;
 	}
 
 	/// <summary>
@@ -122,6 +135,9 @@ public class DrModelViewWidget : Widget
 
 		var bounds = context.ToGlobal(ActualBounds);
 		device.Viewport = new Viewport(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+
+		UpdateSelectionBox();
+
 		if (_sceneNode != null)
 		{
 			_scene.Render(_renderer, _camera);
@@ -144,6 +160,36 @@ public class DrModelViewWidget : Widget
 
 		context.Begin();
 		context.Draw(axisesTarget, new Rectangle(ActualBounds.Width - AxisesSize, 0, AxisesSize, AxisesSize), null, Color.White);
+	}
+
+	/// <summary>
+	/// Keeps the selection box in sync with the selected node, adding or removing it from the
+	/// scene as needed so it is drawn around the node's current bounding box.
+	/// </summary>
+	private void UpdateSelectionBox()
+	{
+		if (_selectedNode == null)
+		{
+			if (_selectionNode != null)
+			{
+				_scene.Root.Children.Remove(_selectionNode);
+				_selectionNode = null;
+			}
+
+			return;
+		}
+
+		if (_selectionNode == null)
+		{
+			_selectionNode = new SelectionBoxNode(MyraEnvironment.GraphicsDevice);
+		}
+
+		_selectionNode.SetTarget(_selectedNode);
+
+		if (!_scene.Root.Children.Contains(_selectionNode))
+		{
+			_scene.Root.Children.Add(_selectionNode);
+		}
 	}
 
 	private void ResetCamera()
