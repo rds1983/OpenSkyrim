@@ -145,8 +145,8 @@ public class SceneViewWidget : Widget
 
 	/// <summary>
 	/// Returns the scene node under the given screen position, or <c>null</c> when nothing is
-	/// hit. When the view ray hits several bounding boxes, the one with the smallest box wins,
-	/// so a small object can be picked even when it lies inside a larger one.
+	/// hit. Every triangle of the picked models is tested through its bounding box; the object
+	/// owning the closest hit triangle is selected.
 	/// </summary>
 	/// <param name="screenPosition">The position in global (screen) coordinates.</param>
 	public SceneNode Pick(Point screenPosition)
@@ -158,32 +158,60 @@ public class SceneViewWidget : Widget
 		}
 
 		SceneNode result = null;
-		var resultSize = float.MaxValue;
 		var resultDistance = float.MaxValue;
 
 		foreach (var node in EnumerateNodes(_sceneNode))
 		{
-			var box = node.BoundingBox;
-			if (!box.HasValue)
+			if (node is not NursiaModelNode modelNode || modelNode.Model == null)
 			{
 				continue;
 			}
 
-			var worldBox = TransformBox(box.Value, node.GlobalTransform);
-			var distance = ray.Value.Intersects(worldBox);
-			if (!distance.HasValue || distance.Value < 0.0f)
+			// Broad phase: skip the node's triangles when the ray misses the model's bounding box.
+			var localBox = modelNode.BoundingBox;
+			if (localBox.HasValue)
 			{
-				continue;
+				var worldBox = TransformBox(localBox.Value, node.GlobalTransform);
+				var nodeDistance = ray.Value.Intersects(worldBox);
+				if (!nodeDistance.HasValue || nodeDistance.Value < 0.0f)
+				{
+					continue;
+				}
 			}
 
-			var size = worldBox.Max - worldBox.Min;
-			var sizeScalar = size.Length();
+			var modelInstance = modelNode.ModelInstance;
 
-			if (sizeScalar < resultSize || (sizeScalar == resultSize && distance.Value < resultDistance))
+			foreach (var mesh in modelNode.Model.Meshes)
 			{
-				resultSize = sizeScalar;
-				resultDistance = distance.Value;
-				result = node;
+				var bone = mesh.ParentBone;
+				if (bone == null)
+				{
+					continue;
+				}
+
+				// The mesh geometry is authored in the bone's space; both the bone's model-space
+				// transform and the node's world transform place it in the world.
+				var worldTransform = modelInstance.GetBoneGlobalTransform(bone.Index) * node.GlobalTransform;
+
+				foreach (var part in mesh.MeshParts)
+				{
+					var triangleBoxes = part.TriangleBoundingBoxes;
+					if (triangleBoxes == null)
+					{
+						continue;
+					}
+
+					foreach (var triangleBox in triangleBoxes)
+					{
+						var worldTriangleBox = TransformBox(triangleBox, worldTransform);
+						var distance = ray.Value.Intersects(worldTriangleBox);
+						if (distance.HasValue && distance.Value >= 0.0f && distance.Value < resultDistance)
+						{
+							resultDistance = distance.Value;
+							result = node;
+						}
+					}
+				}
 			}
 		}
 
