@@ -11,6 +11,17 @@ using OpenSkyrim.NifViewer.Utility;
 
 namespace OpenSkyrim.NifViewer;
 
+/// <summary>
+/// A single placed object of a location, as shown in the location's object list.
+/// </summary>
+public sealed class SkyrimPlacedObject
+{
+	/// <summary>
+	/// Gets the display name of the object (base record editor id, model path or form key).
+	/// </summary>
+	public string Name { get; init; }
+}
+
 public sealed class SkyrimSceneBuilder
 {
 	private const int MaxPlacedObjects = 4000;
@@ -19,6 +30,11 @@ public sealed class SkyrimSceneBuilder
 
 	public int PlacedObjectCount { get; private set; }
 	public int LoadedModelCount { get; private set; }
+
+	/// <summary>
+	/// Gets the display entries for every placed object of the last built location.
+	/// </summary>
+	public List<SkyrimPlacedObject> PlacedObjects { get; private set; } = new List<SkyrimPlacedObject>();
 
 	/// <summary>
 	/// Gets the world transform of where the player appears in the last built location, or
@@ -41,6 +57,7 @@ public sealed class SkyrimSceneBuilder
 	{
 		PlacedObjectCount = 0;
 		LoadedModelCount = 0;
+		PlacedObjects = new List<SkyrimPlacedObject>();
 		PlayerStart = null;
 		PlayerStartSource = null;
 
@@ -58,6 +75,8 @@ public sealed class SkyrimSceneBuilder
 		PlayerStart = PlayerStartResolver.Resolve(linkCache, placedObjects, out var startSource);
 		PlayerStartSource = startSource;
 
+		PlacedObjects = BuildPlacedObjectList(linkCache, placedObjects);
+
 		foreach (var placed in placedObjects)
 		{
 			if (PlacedObjectCount >= MaxPlacedObjects)
@@ -74,6 +93,56 @@ public sealed class SkyrimSceneBuilder
 		}
 
 		return rootNode;
+	}
+
+	private static List<SkyrimPlacedObject> BuildPlacedObjectList(ILinkCache linkCache, IReadOnlyList<IPlacedGetter> placedObjects)
+	{
+		var result = new List<SkyrimPlacedObject>(placedObjects.Count);
+		foreach (var placed in placedObjects)
+		{
+			result.Add(new SkyrimPlacedObject
+			{
+				Name = GetPlacedName(linkCache, placed)
+			});
+		}
+
+		return result;
+	}
+
+	private static string GetPlacedName(ILinkCache linkCache, IPlacedGetter placed)
+	{
+		string baseEditorId = null;
+		string modelPath = null;
+
+		if (placed is IPlacedObjectGetter placedObject)
+		{
+			var baseLink = placedObject.Base;
+			if (baseLink != null && !baseLink.IsNull && baseLink.TryResolve(linkCache, out var baseRecord) && baseRecord != null)
+			{
+				baseEditorId = baseRecord.EditorID;
+				if (baseRecord is IModeledGetter modeled)
+				{
+					modelPath = modeled.Model?.File?.GivenPath;
+				}
+			}
+		}
+
+		if (!string.IsNullOrWhiteSpace(baseEditorId))
+		{
+			return baseEditorId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(modelPath))
+		{
+			return modelPath;
+		}
+
+		if (!string.IsNullOrWhiteSpace(placed.EditorID))
+		{
+			return placed.EditorID;
+		}
+
+		return placed.FormKey.ToString();
 	}
 
 	private SceneNode CreateChild(ILinkCache linkCache, IPlacedGetter placed)

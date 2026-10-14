@@ -23,7 +23,10 @@ partial class MainForm
 	private volatile List<Entry> _pendingData;
 
 	private readonly DataGrid _grid;
+	private readonly DataGrid _objectsGrid;
+	private readonly VerticalSplitPane _leftSplit;
 	private readonly DrModelViewWidget _viewer;
+	private bool _isLeftSplit;
 
 	public MainForm(SkyrimFileSystem fileSystem)
 	{
@@ -33,7 +36,17 @@ partial class MainForm
 		_sceneBuilder = new SkyrimSceneBuilder(_fileSystem);
 
 		_sourceCombo.SelectedIndex = LocationsSource;
-		_sourceCombo.SelectedIndexChanged += (s, a) => QueuePopulateData();
+		_sourceCombo.SelectedIndexChanged += (s, a) =>
+		{
+			// The placed-objects list only applies to a loaded location, so the split is
+			// collapsed when the models source is shown.
+			if (_sourceCombo.SelectedIndex == ModelsSource)
+			{
+				SetLeftGridSplit(false);
+			}
+
+			QueuePopulateData();
+		};
 
 		// The DataGrid draws a filter row underneath its header, so per-column filtering and
 		// header sorting come from the grid itself rather than a separate text box.
@@ -55,6 +68,24 @@ partial class MainForm
 
 		_grid.SelectedIndexChanged += (s, a) => OnEntrySelected();
 		_gridContainer.Widgets.Add(_grid);
+
+		// The placed-objects grid is display-only: selecting a row does nothing.
+		_objectsGrid = new DataGrid
+		{
+			HorizontalAlignment = HorizontalAlignment.Stretch,
+			VerticalAlignment = VerticalAlignment.Stretch,
+			FillColumnIndex = 0,
+			Columns = new DataGridColumnBase[]
+			{
+				new DataGridTextColumn(nameof(SkyrimPlacedObject.Name), "Name", 100)
+			},
+			HasHeader = false,
+			IndexColumnWidth = null,
+			AcceptsKeyboardFocus = true
+		};
+
+		_leftSplit = new VerticalSplitPane();
+		StackPanel.SetProportionType(_leftSplit, ProportionType.Fill);
 
 		_viewer = new DrModelViewWidget
 		{
@@ -106,7 +137,41 @@ partial class MainForm
 
 		if (!string.IsNullOrEmpty(entry.ModelPath))
 		{
+			SetLeftGridSplit(false);
 			LoadModel(entry.ModelPath);
+		}
+	}
+
+	/// <summary>
+	/// Splits the left panel so the entry grid shares it with the placed-objects grid, or puts
+	/// the entry grid back to filling the whole panel.
+	/// </summary>
+	private void SetLeftGridSplit(bool split)
+	{
+		if (split == _isLeftSplit)
+		{
+			return;
+		}
+
+		_isLeftSplit = split;
+
+		if (split)
+		{
+			_leftPanel.Widgets.Remove(_gridContainer);
+
+			_leftSplit.Widgets.Add(_gridContainer);
+			_leftSplit.Widgets.Add(_objectsGrid);
+			_leftSplit.SetSplitterPosition(0, 0.5f);
+
+			_leftPanel.Widgets.Add(_leftSplit);
+		}
+		else
+		{
+			_leftSplit.Widgets.Remove(_gridContainer);
+			_leftSplit.Widgets.Remove(_objectsGrid);
+
+			_leftPanel.Widgets.Add(_gridContainer);
+			StackPanel.SetProportionType(_gridContainer, ProportionType.Fill);
 		}
 	}
 
@@ -145,6 +210,9 @@ partial class MainForm
 			var scene = _sceneBuilder.Build(world.LinkCache, location.Cell);
 			_viewer.PlayerStart = _sceneBuilder.PlayerStart;
 			_viewer.Node = scene;
+
+			_objectsGrid.Data = _sceneBuilder.PlacedObjects;
+			SetLeftGridSplit(true);
 
 			var start = _sceneBuilder.PlayerStart != null
 				? $", start: {_sceneBuilder.PlayerStartSource}"
