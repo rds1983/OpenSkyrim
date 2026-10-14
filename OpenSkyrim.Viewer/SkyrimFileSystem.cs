@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Graphics;
 using Mutagen.Bethesda.Archives;
 using Mutagen.Bethesda.Plugins.Meta;
 using Noggog;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 public partial class SkyrimFileSystem
 {

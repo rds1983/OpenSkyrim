@@ -1,22 +1,22 @@
 # Myra notes
 
-Notes about defining NifViewer's UI with Myra and exporting it to C#.
+Notes about defining OpenSkyrim.Viewer's UI with Myra and exporting it to C#.
 
 ## Workflow
 
-The UI lives in [`NifViewer/UI/mainForm.xmmp`](NifViewer/UI/mainForm.xmmp) (a MyraPad XML project). It is
+The UI lives in [`OpenSkyrim.Viewer/UI/mainForm.xmmp`](OpenSkyrim.Viewer/UI/mainForm.xmmp) (a MyraPad XML project). It is
 exported to C# with the globally installed `myra-export` console tool:
 
 ```
-myra-export "D:\Projects\OpenSkyrim\NifViewer\UI\mainForm.xmmp"
+myra-export "D:\Projects\OpenSkyrim\OpenSkyrim.Viewer\UI\mainForm.xmmp"
 ```
 
 The export options are embedded in the xmpp:
 
 ```xml
-<Project.ExportOptions Namespace="OpenSkyrim.NifViewer.UI" Class="MainForm"
+<Project.ExportOptions Namespace="OpenSkyrim.Viewer.UI" Class="MainForm"
                        FieldsVisibility="Private"
-                       OutputPath="D:\Projects\OpenSkyrim\NifViewer\UI" />
+                       OutputPath="D:\Projects\OpenSkyrim\OpenSkyrim.Viewer\UI" />
 ```
 
 The tool writes two files into `OutputPath`:
@@ -24,7 +24,7 @@ The tool writes two files into `OutputPath`:
 - `MainForm.Generated.cs` — **always** regenerated. Contains `BuildUI()` and the widget
   field declarations. **Never hand-edit it**; changes are lost on the next export.
 - `MainForm.cs` — written **only if it does not already exist**, so the code-behind is
-  safe to edit. (In NifViewer it already exists and is not touched by the tool.)
+  safe to edit. (In OpenSkyrim.Viewer it already exists and is not touched by the tool.)
 
 Behavior code (event wiring, model/viewer setup) goes in `MainForm.cs`; layout and widget
 declarations go in `mainForm.xmmp`.

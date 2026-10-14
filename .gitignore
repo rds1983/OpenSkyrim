@@ -4,4 +4,4 @@ obj/
 *.user
 
 # FNA native libraries are redistributed binaries, not part of the source
-NifViewer/lib/native/
+OpenSkyrim.Viewer/lib/native/

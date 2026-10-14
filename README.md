@@ -20,7 +20,7 @@ The engine is built on the following open-source libraries:
 
 | Project    | Description                                             |
 | ---------- | ------------------------------------------------------- |
-| `NifViewer`| Console tool that scans a Skyrim installation and lists all `.nif` files in a Myra-based `ListView` GUI |
+| `OpenSkyrim.Viewer`| Console tool that scans a Skyrim installation and lists all `.nif` files in a Myra-based `ListView` GUI |
 
 ## Mutagen Notes
 

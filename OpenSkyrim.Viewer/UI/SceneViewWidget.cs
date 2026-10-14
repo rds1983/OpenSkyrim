@@ -11,9 +11,9 @@ using Nursia.Rendering;
 using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
 using Nursia.Utilities;
-using OpenSkyrim.NifViewer.Utility;
+using OpenSkyrim.Viewer.Utility;
 
-namespace OpenSkyrim.NifViewer.UI;
+namespace OpenSkyrim.Viewer.UI;
 
 public class SceneViewWidget : Widget
 {

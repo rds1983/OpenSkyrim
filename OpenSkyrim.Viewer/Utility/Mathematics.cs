@@ -1,9 +1,9 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using NiflySharp.Structs;
 using Noggog;
 using System;
 
-namespace OpenSkyrim.NifViewer.Utility;
+namespace OpenSkyrim.Viewer.Utility;
 
 internal static class Mathematics
 {

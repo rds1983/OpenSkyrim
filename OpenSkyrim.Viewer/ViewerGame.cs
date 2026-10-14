@@ -3,11 +3,11 @@ using Microsoft.Xna.Framework.Graphics;
 using Myra;
 using Myra.Graphics2D.UI;
 using Nursia;
-using OpenSkyrim.NifViewer.UI;
+using OpenSkyrim.Viewer.UI;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
-public class NifViewerGame : Game
+public class ViewerGame : Game
 {
 	private readonly GraphicsDeviceManager _graphics;
 	private readonly string _skyrimFolder;
@@ -16,7 +16,7 @@ public class NifViewerGame : Game
 	private MainForm _mainForm;
 	private SkyrimFileSystem _fileSystem;
 
-	public NifViewerGame(string skyrimFolder)
+	public ViewerGame(string skyrimFolder)
 	{
 		_skyrimFolder = skyrimFolder;
 
@@ -28,7 +28,7 @@ public class NifViewerGame : Game
 
 		Window.AllowUserResizing = true;
 		IsMouseVisible = true;
-		Window.Title = "NifViewer - OpenSkyrim";
+		Window.Title = "OpenSkyrim Viewer";
 	}
 
 	protected override void LoadContent()

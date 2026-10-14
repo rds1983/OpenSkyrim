@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>NifViewer</AssemblyName>
-    <RootNamespace>OpenSkyrim.NifViewer</RootNamespace>
+    <AssemblyName>OpenSkyrim.Viewer</AssemblyName>
+    <RootNamespace>OpenSkyrim.Viewer</RootNamespace>
     <DefineConstants>$(DefineConstants);FNA</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RollForward>Major</RollForward>

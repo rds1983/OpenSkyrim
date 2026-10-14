@@ -7,7 +7,7 @@ using Nursia.Materials;
 using Nursia.Rendering;
 using Nursia.SceneGraph;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 /// <summary>
 /// A scene node that draws a wireframe box around a target node's full bounding box.

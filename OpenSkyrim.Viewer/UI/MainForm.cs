@@ -7,7 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OpenSkyrim.NifViewer.UI;
+namespace OpenSkyrim.Viewer.UI;
 
 partial class MainForm
 {

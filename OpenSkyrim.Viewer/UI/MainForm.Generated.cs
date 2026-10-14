@@ -21,7 +21,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 #endif
 
-namespace OpenSkyrim.NifViewer.UI
+namespace OpenSkyrim.Viewer.UI
 {
 	partial class MainForm: Grid
 	{

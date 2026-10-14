@@ -5,7 +5,7 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 public sealed class SkyrimLocation
 {

@@ -6,9 +6,9 @@ using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Skyrim;
-using OpenSkyrim.NifViewer.Utility;
+using OpenSkyrim.Viewer.Utility;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 /// <summary>
 /// Works out where the player is standing when a cell is opened.

@@ -1,5 +1,5 @@
 <Project>
-  <Project.ExportOptions Namespace="OpenSkyrim.NifViewer.UI" Class="MainForm" FieldsVisibility="Private" />
+  <Project.ExportOptions Namespace="OpenSkyrim.Viewer.UI" Class="MainForm" FieldsVisibility="Private" />
   <Grid RowSpacing="4" ColumnSpacing="8" Padding="8">
     <Grid.ColumnsProportions>
       <Proportion Type="Part" Value="1" />

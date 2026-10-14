@@ -1,11 +1,11 @@
-﻿using DigitalRiseModel.Vertices;
+using DigitalRiseModel.Vertices;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace NifViewer.Utility;
+namespace OpenSkyrim.Viewer.Utility;
 
 internal static class XNA
 {

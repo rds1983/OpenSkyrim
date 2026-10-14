@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using System;
 
-namespace OpenSkyrim.NifViewer.Utility;
+namespace OpenSkyrim.Viewer.Utility;
 
 /// <summary>
 /// A triangle defined by three vertices in space.

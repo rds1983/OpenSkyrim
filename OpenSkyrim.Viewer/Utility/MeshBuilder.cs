@@ -1,10 +1,10 @@
-﻿using DigitalRiseModel;
+using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace NifViewer.Utility;
+namespace OpenSkyrim.Viewer.Utility;
 
 internal class MeshBuilder
 {

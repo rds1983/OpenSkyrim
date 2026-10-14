@@ -8,9 +8,9 @@ using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
 using Nursia.SceneGraph;
-using OpenSkyrim.NifViewer.Utility;
+using OpenSkyrim.Viewer.Utility;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 /// <summary>
 /// A single placed object of a location, as shown in the location's object list.

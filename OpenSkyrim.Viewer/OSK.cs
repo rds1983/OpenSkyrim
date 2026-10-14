@@ -1,7 +1,7 @@
-﻿using System;
+using System;
 using System.Reflection;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 public static class OSK
 {

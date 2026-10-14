@@ -1,16 +1,15 @@
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using NifViewer.Utility;
+using OpenSkyrim.Viewer.Utility;
 using NiflySharp;
 using NiflySharp.Blocks;
 using Nursia;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using OpenSkyrim.NifViewer.Utility;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 public partial class SkyrimFileSystem
 {

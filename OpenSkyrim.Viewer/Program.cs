@@ -1,6 +1,6 @@
 using System;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.Viewer;
 
 class Program
 {
@@ -8,7 +8,7 @@ class Program
 	{
 		if (args.Length == 0)
 		{
-			Console.WriteLine("Usage: NifViewer <skyrim-folder>");
+			Console.WriteLine("Usage: OpenSkyrim.Viewer <skyrim-folder>");
 			Console.WriteLine("  <skyrim-folder>  Path to the Skyrim installation folder, e.g. \"D:\\SteamLibrary\\steamapps\\common\\Skyrim Special Edition\"");
 			return 1;
 		}
@@ -17,7 +17,7 @@ class Program
 		{
 			Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "D3D11");
 
-			using (var game = new NifViewerGame(args[0]))
+			using (var game = new ViewerGame(args[0]))
 			{
 				game.Run();
 			}
