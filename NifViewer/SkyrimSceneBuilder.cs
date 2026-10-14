@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DigitalRiseModel;
 using DynamicData.Kernel;
 using Microsoft.Xna.Framework;
@@ -146,16 +147,21 @@ public sealed class SkyrimSceneBuilder
 		PlayerStart = PlayerStartResolver.Resolve(linkCache, placedObjects, out var startSource);
 		PlayerStartSource = startSource;
 
-		PlacedObjects = BuildPlacedObjectList(linkCache, placedObjects);
+		// Design-time markers (X markers and the like) are only drawn by the Creation Kit, so
+		// they are left out of both the object list and the scene. They are still considered
+		// when resolving the player start above, since some cells use them as spawn points.
+		var visibleObjects = placedObjects.Where(o => !IsDesignTimeMarker(linkCache, o)).AsList();
 
-		for (var i = 0; i < placedObjects.Count; ++i)
+		PlacedObjects = BuildPlacedObjectList(linkCache, visibleObjects);
+
+		for (var i = 0; i < visibleObjects.Count; ++i)
 		{
 			if (PlacedObjectCount >= MaxPlacedObjects)
 			{
 				break;
 			}
 
-			var child = CreateChild(linkCache, placedObjects[i]);
+			var child = CreateChild(linkCache, visibleObjects[i]);
 			if (child != null)
 			{
 				rootNode.Children.Add(child);
@@ -171,6 +177,32 @@ public sealed class SkyrimSceneBuilder
 		}
 
 		return rootNode;
+	}
+
+	// The Skyrim major record flag that marks an object as a Creation Kit marker (X markers,
+	// room/portal/collision markers, map markers and the like). The game does not render such
+	// objects; only the Creation Kit's render window draws them.
+	private const int MarkerFlag = 0x00800000;
+
+	private static bool IsDesignTimeMarker(ILinkCache linkCache, IPlacedGetter placed)
+	{
+		if (placed is not IPlacedObjectGetter placedObject)
+		{
+			return false;
+		}
+
+		var baseLink = placedObject.Base;
+		if (baseLink == null || baseLink.IsNull)
+		{
+			return false;
+		}
+
+		if (!baseLink.TryResolve(linkCache, out var baseRecord) || baseRecord == null)
+		{
+			return false;
+		}
+
+		return (baseRecord.MajorRecordFlagsRaw & MarkerFlag) != 0;
 	}
 
 	private static List<SkyrimPlacedObject> BuildPlacedObjectList(ILinkCache linkCache, IReadOnlyList<IPlacedGetter> placedObjects)
