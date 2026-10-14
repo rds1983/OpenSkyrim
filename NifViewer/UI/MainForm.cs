@@ -98,6 +98,8 @@ partial class MainForm
 
 		_viewerContainer.Widgets.Add(_viewer);
 
+		_viewer.ObjectPicked += OnViewerObjectPicked;
+
 		_mainSplit.SetSplitterPosition(0, 0.25f);
 
 		QueuePopulateData();
@@ -152,6 +154,40 @@ partial class MainForm
 	private void OnPlacedObjectSelected()
 	{
 		_viewer.SelectedNode = (_objectsGrid.SelectedItem as SkyrimPlacedObject)?.Node;
+	}
+
+	/// <summary>
+	/// Selects the placed-objects row that corresponds to a node clicked in the viewer. Clicking
+	/// empty space (or a node that is not a placed object) clears the selection.
+	/// </summary>
+	private void OnViewerObjectPicked(SceneNode node)
+	{
+		// Picking only applies while the placed-objects list is shown for a location.
+		if (!_isLeftSplit)
+		{
+			return;
+		}
+
+		var index = node != null
+			? _sceneBuilder.PlacedObjects.FindIndex(o => o.Node == node)
+			: -1;
+
+		if (index < 0)
+		{
+			_objectsGrid.SelectedRowIndex = null;
+			_viewer.SelectedNode = null;
+			return;
+		}
+
+		// The grid only keeps a page of rows laid out, so the picked row has to be scrolled
+		// into view for it to be highlighted. Setting the selection raises the grid's selection
+		// event, but the selected node is also set directly so the highlight appears even when
+		// the row is not on the current page.
+		var rowsPerPage = Math.Max(1, _objectsGrid.RowsPerPage);
+		var maxStartRow = Math.Max(0, _objectsGrid.TotalRows - rowsPerPage);
+		_objectsGrid.StartRow = Math.Clamp(index - rowsPerPage / 2, 0, maxStartRow);
+		_objectsGrid.SelectedRowIndex = index;
+		_viewer.SelectedNode = node;
 	}
 
 	/// <summary>

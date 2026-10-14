@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using DigitalRiseModel;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using Myra;
 using Myra.Graphics2D;
 using Myra.Graphics2D.UI;
@@ -67,6 +69,12 @@ public class DrModelViewWidget : Widget
 	/// </summary>
 	public CameraInputController CameraController => _cameraController;
 
+	/// <summary>
+	/// Occurs when the viewer is left-clicked, with the node under the pointer, or <c>null</c>
+	/// when the click did not hit anything.
+	/// </summary>
+	public event Action<SceneNode> ObjectPicked;
+
 	public SceneNode Node
 	{
 		get => _sceneNode;
@@ -119,6 +127,121 @@ public class DrModelViewWidget : Widget
 		{
 			_cameraController.Update(elapsedSeconds);
 		}
+	}
+
+	public override void OnTouchDown()
+	{
+		base.OnTouchDown();
+
+		// Myra reports any mouse button as a touch, but the right button drives camera rotation,
+		// so only the left button selects.
+		if (Mouse.GetState().LeftButton != ButtonState.Pressed)
+		{
+			return;
+		}
+
+		ObjectPicked?.Invoke(Pick(Desktop.MousePosition));
+	}
+
+	/// <summary>
+	/// Returns the scene node under the given screen position, or <c>null</c> when nothing is
+	/// hit. When the view ray hits several bounding boxes, the one with the smallest box wins,
+	/// so a small object can be picked even when it lies inside a larger one.
+	/// </summary>
+	/// <param name="screenPosition">The position in global (screen) coordinates.</param>
+	public SceneNode Pick(Point screenPosition)
+	{
+		var ray = CreateRay(screenPosition);
+		if (ray == null)
+		{
+			return null;
+		}
+
+		SceneNode result = null;
+		var resultSize = float.MaxValue;
+		var resultDistance = float.MaxValue;
+
+		foreach (var node in EnumerateNodes(_sceneNode))
+		{
+			var box = node.BoundingBox;
+			if (!box.HasValue)
+			{
+				continue;
+			}
+
+			var worldBox = TransformBox(box.Value, node.GlobalTransform);
+			var distance = ray.Value.Intersects(worldBox);
+			if (!distance.HasValue || distance.Value < 0.0f)
+			{
+				continue;
+			}
+
+			var size = worldBox.Max - worldBox.Min;
+			var sizeScalar = size.Length();
+
+			if (sizeScalar < resultSize || (sizeScalar == resultSize && distance.Value < resultDistance))
+			{
+				resultSize = sizeScalar;
+				resultDistance = distance.Value;
+				result = node;
+			}
+		}
+
+		return result;
+	}
+
+	private Ray? CreateRay(Point screenPosition)
+	{
+		if (_sceneNode == null || ActualBounds.Width <= 0 || ActualBounds.Height <= 0)
+		{
+			return null;
+		}
+
+		// Build the viewport using the widget's global position, then unproject the screen
+		// point to world space at the near and far planes to obtain the pick ray.
+		var bounds = ActualBounds;
+		var origin = ToGlobal(bounds.Location);
+		bounds.X = origin.X;
+		bounds.Y = origin.Y;
+
+		var viewport = new Viewport(bounds.X, bounds.Y, bounds.Width, bounds.Height);
+		var near = viewport.Unproject(new Vector3(screenPosition.X, screenPosition.Y, 0.0f),
+			_camera.Projection, _camera.View, Matrix.Identity);
+		var far = viewport.Unproject(new Vector3(screenPosition.X, screenPosition.Y, 1.0f),
+			_camera.Projection, _camera.View, Matrix.Identity);
+
+		var direction = far - near;
+		if (direction.LengthSquared() <= 0.0f)
+		{
+			return null;
+		}
+
+		direction.Normalize();
+		return new Ray(near, direction);
+	}
+
+	private static IEnumerable<SceneNode> EnumerateNodes(SceneNode node)
+	{
+		yield return node;
+
+		foreach (var child in node.Children)
+		{
+			foreach (var descendant in EnumerateNodes(child))
+			{
+				yield return descendant;
+			}
+		}
+	}
+
+	private static BoundingBox TransformBox(BoundingBox box, Matrix transform)
+	{
+		var corners = box.GetCorners();
+		for (var i = 0; i < corners.Length; ++i)
+		{
+			corners[i] = Vector3.Transform(corners[i], transform);
+		}
+
+		return BoundingBox.CreateFromPoints(corners);
 	}
 
 	public override void InternalRender(RenderContext context)
