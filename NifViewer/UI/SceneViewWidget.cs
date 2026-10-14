@@ -12,9 +12,9 @@ using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
 using Nursia.Utilities;
 
-namespace OpenSkyrim.NifViewer;
+namespace OpenSkyrim.NifViewer.UI;
 
-public class DrModelViewWidget : Widget
+public class SceneViewWidget : Widget
 {
 	private const int AxisesSize = 160;
 
@@ -38,7 +38,7 @@ public class DrModelViewWidget : Widget
 	private readonly Camera _camera = new Camera();
 	private readonly CameraInputController _cameraController;
 
-	public DrModelViewWidget()
+	public SceneViewWidget()
 	{
 		_cameraController = new CameraInputController(_camera)
 		{

@@ -25,7 +25,7 @@ partial class MainForm
 	private readonly DataGrid _grid;
 	private readonly DataGrid _objectsGrid;
 	private readonly VerticalSplitPane _leftSplit;
-	private readonly DrModelViewWidget _viewer;
+	private readonly SceneViewWidget _viewer;
 	private bool _isLeftSplit;
 
 	public MainForm(SkyrimFileSystem fileSystem)
@@ -90,7 +90,7 @@ partial class MainForm
 		_leftSplit = new VerticalSplitPane();
 		StackPanel.SetProportionType(_leftSplit, ProportionType.Fill);
 
-		_viewer = new DrModelViewWidget
+		_viewer = new SceneViewWidget
 		{
 			HorizontalAlignment = HorizontalAlignment.Stretch,
 			VerticalAlignment = VerticalAlignment.Stretch,
