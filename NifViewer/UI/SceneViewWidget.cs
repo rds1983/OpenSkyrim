@@ -11,6 +11,7 @@ using Nursia.Rendering;
 using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
 using Nursia.Utilities;
+using OpenSkyrim.NifViewer.Utility;
 
 namespace OpenSkyrim.NifViewer.UI;
 
@@ -75,6 +76,12 @@ public class SceneViewWidget : Widget
 	/// </summary>
 	public event Action<SceneNode> ObjectPicked;
 
+	/// <summary>
+	/// Occurs when <see cref="SelectedNode"/> changes, with the new selected node (or
+	/// <c>null</c> when the selection is cleared).
+	/// </summary>
+	public event Action<SceneNode> SelectionChanged;
+
 	public SceneNode Node
 	{
 		get => _sceneNode;
@@ -86,7 +93,7 @@ public class SceneViewWidget : Widget
 			}
 
 			_sceneNode = value;
-			_selectedNode = null;
+			SelectedNode = null;
 
 			if (_sceneNode != null)
 			{
@@ -104,7 +111,16 @@ public class SceneViewWidget : Widget
 	public SceneNode SelectedNode
 	{
 		get => _selectedNode;
-		set => _selectedNode = value;
+		set
+		{
+			if (_selectedNode == value)
+			{
+				return;
+			}
+
+			_selectedNode = value;
+			SelectionChanged?.Invoke(value);
+		}
 	}
 
 	/// <summary>
@@ -145,8 +161,8 @@ public class SceneViewWidget : Widget
 
 	/// <summary>
 	/// Returns the scene node under the given screen position, or <c>null</c> when nothing is
-	/// hit. Every triangle of the picked models is tested through its bounding box; the object
-	/// owning the closest hit triangle is selected.
+	/// hit. Every triangle of the picked models is tested directly; the object owning the
+	/// closest hit triangle is selected.
 	/// </summary>
 	/// <param name="screenPosition">The position in global (screen) coordinates.</param>
 	public SceneNode Pick(Point screenPosition)
@@ -162,16 +178,18 @@ public class SceneViewWidget : Widget
 
 		foreach (var node in EnumerateNodes(_sceneNode))
 		{
-			if (node is not NursiaModelNode modelNode || modelNode.Model == null)
+			// Only placed objects carry pickable triangle geometry (tagged when the scene was
+			// built).
+			if (node.Tag is not SkyrimPlacedObject placed)
 			{
 				continue;
 			}
 
-			// Broad phase: skip the node's triangles when the ray misses the model's bounding box.
-			var localBox = modelNode.BoundingBox;
-			if (localBox.HasValue)
+			// Broad phase: skip the object when the ray misses its bounding box. This
+			// also avoids building the object's triangles when it isn't a candidate.
+			if (node is NursiaModelNode modelNode && modelNode.BoundingBox.HasValue)
 			{
-				var worldBox = TransformBox(localBox.Value, node.GlobalTransform);
+				var worldBox = TransformBox(modelNode.BoundingBox.Value, node.GlobalTransform);
 				var nodeDistance = ray.Value.Intersects(worldBox);
 				if (!nodeDistance.HasValue || nodeDistance.Value < 0.0f)
 				{
@@ -179,38 +197,22 @@ public class SceneViewWidget : Widget
 				}
 			}
 
-			var modelInstance = modelNode.ModelInstance;
-
-			foreach (var mesh in modelNode.Model.Meshes)
+			var triangles = placed.Triangles;
+			if (triangles == null)
 			{
-				var bone = mesh.ParentBone;
-				if (bone == null)
+				continue;
+			}
+
+			// The triangles are in the model node's local space; the node's world transform
+			// places them in the world.
+			var worldTransform = node.GlobalTransform;
+			foreach (var triangle in triangles)
+			{
+				var worldTriangle = triangle.Transform(worldTransform);
+				if (worldTriangle.Intersects(ray.Value, out var distance) && distance < resultDistance)
 				{
-					continue;
-				}
-
-				// The mesh geometry is authored in the bone's space; both the bone's model-space
-				// transform and the node's world transform place it in the world.
-				var worldTransform = modelInstance.GetBoneGlobalTransform(bone.Index) * node.GlobalTransform;
-
-				foreach (var part in mesh.MeshParts)
-				{
-					var triangleBoxes = part.TriangleBoundingBoxes;
-					if (triangleBoxes == null)
-					{
-						continue;
-					}
-
-					foreach (var triangleBox in triangleBoxes)
-					{
-						var worldTriangleBox = TransformBox(triangleBox, worldTransform);
-						var distance = ray.Value.Intersects(worldTriangleBox);
-						if (distance.HasValue && distance.Value >= 0.0f && distance.Value < resultDistance)
-						{
-							resultDistance = distance.Value;
-							result = node;
-						}
-					}
+					resultDistance = distance;
+					result = node;
 				}
 			}
 		}

@@ -26,6 +26,71 @@ public sealed class SkyrimPlacedObject
 	/// added to the scene (no model, missing file or beyond the scene's object cap).
 	/// </summary>
 	public SceneNode Node { get; set; }
+
+	private Triangle[] _triangles;
+	private bool _trianglesBuilt;
+
+	/// <summary>
+	/// Gets every triangle of this object's model (in the model node's local space, bone
+	/// transforms applied), built lazily from the model's source geometry. Returns <c>null</c>
+	/// when the object has no pickable geometry.
+	/// </summary>
+	public Triangle[] Triangles
+	{
+		get
+		{
+			if (!_trianglesBuilt)
+			{
+				_trianglesBuilt = true;
+				_triangles = BuildTriangles();
+			}
+
+			return _triangles;
+		}
+	}
+
+	private Triangle[] BuildTriangles()
+	{
+		if (Node is not NursiaModelNode modelNode || modelNode.Model == null)
+		{
+			return null;
+		}
+
+		var modelInstance = modelNode.ModelInstance;
+		var result = new List<Triangle>();
+
+		foreach (var mesh in modelNode.Model.Meshes)
+		{
+			var bone = mesh.ParentBone;
+			if (bone == null)
+			{
+				continue;
+			}
+
+			var boneTransform = modelInstance.GetBoneGlobalTransform(bone.Index);
+
+			foreach (var part in mesh.MeshParts)
+			{
+				var positions = part.SourcePositions;
+				var indices = part.SourceIndices;
+				if (positions == null || indices == null || indices.Length < 3)
+				{
+					continue;
+				}
+
+				var count = indices.Length / 3;
+				for (var i = 0; i < count; ++i)
+				{
+					result.Add(new Triangle(
+						Vector3.Transform(positions[indices[i * 3]], boneTransform),
+						Vector3.Transform(positions[indices[i * 3 + 1]], boneTransform),
+						Vector3.Transform(positions[indices[i * 3 + 2]], boneTransform)));
+				}
+			}
+		}
+
+		return result.Count > 0 ? result.ToArray() : null;
+	}
 }
 
 public sealed class SkyrimSceneBuilder
@@ -96,8 +161,10 @@ public sealed class SkyrimSceneBuilder
 				rootNode.Children.Add(child);
 
 				// PlacedObjects is built from the same list in the same order, so the node can
-				// be linked back to its list entry for selection in the UI.
+				// be linked back to its list entry for selection in the UI. The node is also
+				// tagged with its entry so the viewer can pick it and use its triangle boxes.
 				PlacedObjects[i].Node = child;
+				child.Tag = PlacedObjects[i];
 
 				++PlacedObjectCount;
 			}
