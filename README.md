@@ -9,6 +9,7 @@ The engine is built on the following open-source libraries:
 | Library            | Purpose                                              | Repo                                                     |
 | ------------------ | ---------------------------------------------------- | -------------------------------------------------------- |
 | FNA                | Cross-platform audio, input, and drawing (XNA reimplementation) | https://github.com/FNA-XNA/FNA                 |
+| Myra               | UI toolkit used for the in-game GUI                  | https://github.com/rds1983/Myra                           |
 | FontStashSharp     | Dynamic sprite-font rendering / text layout          | https://github.com/FontStashSharp/FontStashSharp          |
 | XNAssets           | Loading and processing of game assets                | https://github.com/rds1983/XNAssets                       |
 | DigitalRiseModel   | 3D model loading                                     | https://github.com/rds1983/DigitalRiseModel               |
@@ -18,9 +19,43 @@ The engine is built on the following open-source libraries:
 
 ## Repository Layout
 
-| Project    | Description                                             |
-| ---------- | ------------------------------------------------------- |
-| `OpenSkyrim.Viewer`| Console tool that scans a Skyrim installation and lists all `.nif` files in a Myra-based `ListView` GUI |
+| Project             | Description                                                                 |
+| ------------------- | --------------------------------------------------------------------------- |
+| `OpenSkyrim.Viewer` | FNA + Myra + Nursia tool for inspecting a Skyrim Special Edition installation (see below) |
+
+## OpenSkyrim.Viewer
+
+`OpenSkyrim.Viewer` is a desktop tool (FNA + Myra + Nursia) for inspecting a **Skyrim Special
+Edition** installation. It currently:
+
+- Mounts the game's `Data` folder, both loose files and `.bsa` archives, and lists every
+  `.nif` model found there.
+- Lists every interior cell and every worldspace cell ("locations") from `Skyrim.esm`.
+- Renders the selected location's placed objects as a 3D scene, applying each placement's
+  transform and loading DDS textures on demand.
+- Renders an individual `.nif` model when a model entry is selected.
+- Resolves the location's player-start marker and places the camera there on load.
+- Lets you select an object either from the object list or by clicking it in the scene
+  (ray/triangle picking); the selection is highlighted with a box and stays in sync between
+  the two.
+- Hides Creation Kit-only design-time markers (X markers, room markers and the like), which
+  the game never renders.
+
+### Building and Running
+
+Requires the .NET 8 SDK. Build the solution:
+
+```
+dotnet build OpenSkyrim.slnx
+```
+
+The FNA native libraries are not checked into the repository (see `.gitignore`); place them
+under `OpenSkyrim.Viewer/lib/native` so they are copied to the output directory. Run the
+viewer by passing the Skyrim installation folder:
+
+```
+dotnet run --project OpenSkyrim.Viewer -- "D:\SteamLibrary\steamapps\common\Skyrim Special Edition"
+```
 
 ## Mutagen Notes
 
@@ -29,6 +64,10 @@ For the project’s findings on working with Bethesda data files and Mutagen-bas
 ## Nifly Notes
 
 For the project’s findings on loading `.nif` files and extracting mesh and texture data with Nifly, see [NIFLY_NOTES.md](NIFLY_NOTES.md).
+
+## Myra Notes
+
+For the project’s findings on building OpenSkyrim.Viewer’s UI with MyraPad / `myra-export`, see [MYRA_NOTES.md](MYRA_NOTES.md).
 
 ## Roadmap
 

@@ -14,10 +14,12 @@ myra-export "D:\Projects\OpenSkyrim\OpenSkyrim.Viewer\UI\mainForm.xmmp"
 The export options are embedded in the xmpp:
 
 ```xml
-<Project.ExportOptions Namespace="OpenSkyrim.Viewer.UI" Class="MainForm"
-                       FieldsVisibility="Private"
-                       OutputPath="D:\Projects\OpenSkyrim\OpenSkyrim.Viewer\UI" />
+<Project.ExportOptions Namespace="OpenSkyrim.Viewer.UI" Class="MainForm" FieldsVisibility="Private" />
 ```
+
+`OutputPath` is optional: when omitted, `myra-export` writes next to the xmpp (see
+`MyraExport/Program.cs`, which defaults `OutputPath` to the xmpp's own directory). The
+generated files therefore land in `OpenSkyrim.Viewer/UI` without needing an explicit path.
 
 The tool writes two files into `OutputPath`:
 
@@ -36,21 +38,20 @@ declarations go in `mainForm.xmmp`.
 `ExporterCS.BuildProperties` collects every public property with a public getter, and
 `ShouldSerializeProperty` only filters a property out if it is tagged `[DefaultValue]`
 (or is a default Thickness/proportion). Read-only properties therefore get an assignment
-generated for them, e.g. `TreeView`:
+generated for them, e.g. `TreeView` exposes get-only `SubNodesCount`/`TotalNodesCount`:
 
 ```csharp
-_bonesTree.SubNodesCount = 0;   // CS0200: property is read-only
-_bonesTree.TotalNodesCount = 0; // CS0200: property is read-only
+_myTree.SubNodesCount = 0;   // CS0200: property is read-only
+_myTree.TotalNodesCount = 0; // CS0200: property is read-only
 ```
 
 `SubNodesCount`/`TotalNodesCount` are get-only and have no `[DefaultValue]`, so a
-`TreeView` **cannot** be declared in the xmpp. Instead the xmpp declares the container
-(a `ScrollViewer`, here `_bonesScroll`) and the widget is created in code-behind and
-attached:
+`TreeView` **cannot** be declared in the xmpp. Instead declare a container (e.g. a
+`ScrollViewer`) in the xmpp and create the widget in code-behind, then attach it:
 
 ```csharp
-_bonesTree = new TreeView();
-_bonesScroll.Content = _bonesTree;
+_myTree = new TreeView();
+_myScroll.Content = _myTree;
 ```
 
 (The same applies to any other Myra widget that exposes read-only public properties
@@ -63,7 +64,7 @@ proportions (all children `Part 1.0`, last child `Fill`). Re-apply the splitter 
 after every add/remove, e.g.:
 
 ```csharp
-_mainSplit.Widgets.Add(_rightPanel);
+_mainSplit.Widgets.Add(somePanel);
 _mainSplit.SetSplitterPosition(0, 0.2f);
 _mainSplit.SetSplitterPosition(1, 0.6f);
 ```
