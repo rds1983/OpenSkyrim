@@ -244,7 +244,4 @@ public partial class SkyrimFileSystem
 
 		return result;
 	}
-
-	private static Vector3 ToVector3(System.Numerics.Vector3 v) => new Vector3(v.X, v.Y, v.Z);
-	private static Vector2 ToVector2(NiflySharp.Structs.TexCoord uv) => new Vector2(uv.U, uv.V);
 }

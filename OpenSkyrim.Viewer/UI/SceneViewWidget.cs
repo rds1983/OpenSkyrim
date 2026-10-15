@@ -11,6 +11,7 @@ using Nursia.Rendering;
 using Nursia.SceneGraph;
 using Nursia.SceneGraph.Lights;
 using Nursia.Utilities;
+using OpenSkyrim.Viewer.Data;
 using OpenSkyrim.Viewer.Utility;
 
 namespace OpenSkyrim.Viewer.UI;
@@ -180,7 +181,7 @@ public class SceneViewWidget : Widget
 		{
 			// Only placed objects carry pickable triangle geometry (tagged when the scene was
 			// built).
-			if (node.Tag is not SkyrimPlacedObject placed)
+			if (node.Tag is not LocationObject placed)
 			{
 				continue;
 			}

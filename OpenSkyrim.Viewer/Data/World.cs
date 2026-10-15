@@ -5,26 +5,17 @@ using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
 
-namespace OpenSkyrim.Viewer;
+namespace OpenSkyrim.Viewer.Data;
 
-public sealed class SkyrimLocation
-{
-	public string Name { get; init; }
-	public ICellGetter Cell { get; init; }
-	public IWorldspaceGetter Worldspace { get; init; }
-
-	public override string ToString() => Name;
-}
-
-public sealed class SkyrimWorld : IDisposable
+public sealed class World : IDisposable
 {
 	private readonly ISkyrimModDisposableGetter _mod;
-	private readonly List<SkyrimLocation> _locations = new List<SkyrimLocation>();
+	private readonly List<Location> _locations = new List<Location>();
 
 	public ILinkCache LinkCache { get; }
-	public IReadOnlyList<SkyrimLocation> Locations => _locations;
+	public IReadOnlyList<Location> Locations => _locations;
 
-	public SkyrimWorld(string pluginPath)
+	public World(string pluginPath)
 	{
 		_mod = SkyrimMod.CreateFromBinaryOverlay(new ModPath(pluginPath), SkyrimRelease.SkyrimSE);
 		LinkCache = _mod.ToImmutableLinkCache();
@@ -44,7 +35,7 @@ public sealed class SkyrimWorld : IDisposable
 				{
 					foreach (var cell in subBlock.Cells)
 					{
-						_locations.Add(new SkyrimLocation
+						_locations.Add(new Location
 						{
 							Name = GetCellName(cell, null),
 							Cell = cell
@@ -65,7 +56,7 @@ public sealed class SkyrimWorld : IDisposable
 					{
 						foreach (var cell in subBlock.Items)
 						{
-							_locations.Add(new SkyrimLocation
+							_locations.Add(new Location
 							{
 								Name = GetCellName(cell, worldspace),
 								Cell = cell,

@@ -1,6 +1,7 @@
 using Myra.Graphics2D.UI;
 using Myra.Graphics2D.UI.Data;
 using Nursia.SceneGraph;
+using OpenSkyrim.Viewer.Data;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,9 +17,9 @@ partial class MainForm
 
 	private readonly SkyrimFileSystem _fileSystem;
 	private readonly SkyrimSceneBuilder _sceneBuilder;
-	private readonly object _skyrimWorldLock = new object();
+	private readonly object _worldLock = new object();
 
-	private SkyrimWorld _skyrimWorld;
+	private World _world;
 	private int _populateVersion;
 	private volatile List<Entry> _pendingData;
 
@@ -78,7 +79,7 @@ partial class MainForm
 			FillColumnIndex = 0,
 			Columns = new DataGridColumnBase[]
 			{
-				new DataGridTextColumn(nameof(SkyrimPlacedObject.Name), "Name", 100)
+				new DataGridTextColumn(nameof(LocationObject.Name), "Name", 100)
 			},
 			HasHeader = false,
 			IndexColumnWidth = null,
@@ -153,7 +154,7 @@ partial class MainForm
 	/// </summary>
 	private void OnPlacedObjectSelected()
 	{
-		_viewer.SelectedNode = (_objectsGrid.SelectedItem as SkyrimPlacedObject)?.Node;
+		_viewer.SelectedNode = (_objectsGrid.SelectedItem as LocationObject)?.Node;
 	}
 
 	/// <summary>
@@ -245,12 +246,12 @@ partial class MainForm
 		}
 	}
 
-	private void LoadLocation(SkyrimLocation location)
+	private void LoadLocation(Location location)
 	{
 		try
 		{
 			_statusLabel.Text = $"Loading '{location.Name}'...";
-			var world = GetSkyrimWorld();
+			var world = GetWorld();
 			if (world == null)
 			{
 				_statusLabel.Text = "Skyrim.esm is not available.";
@@ -278,13 +279,13 @@ partial class MainForm
 		}
 	}
 
-	private SkyrimWorld GetSkyrimWorld()
+	private World GetWorld()
 	{
-		lock (_skyrimWorldLock)
+		lock (_worldLock)
 		{
-			if (_skyrimWorld != null)
+			if (_world != null)
 			{
-				return _skyrimWorld;
+				return _world;
 			}
 
 			var pluginPath = _fileSystem.GetPluginPath("Skyrim.esm");
@@ -295,9 +296,9 @@ partial class MainForm
 			}
 
 			OSK.LogInfo($"Loading '{pluginPath}'...");
-			_skyrimWorld = new SkyrimWorld(pluginPath);
-			OSK.LogInfo($"Found {_skyrimWorld.Locations.Count} location(s).");
-			return _skyrimWorld;
+			_world = new World(pluginPath);
+			OSK.LogInfo($"Found {_world.Locations.Count} location(s).");
+			return _world;
 		}
 	}
 
@@ -352,7 +353,7 @@ partial class MainForm
 
 	private void PopulateLocations(List<Entry> data)
 	{
-		var world = GetSkyrimWorld();
+		var world = GetWorld();
 		if (world == null)
 		{
 			return;
@@ -381,7 +382,7 @@ partial class MainForm
 
 	private sealed class Entry
 	{
-		public Entry(SkyrimLocation location, string modelPath)
+		public Entry(Location location, string modelPath)
 		{
 			Location = location;
 			ModelPath = modelPath;
@@ -393,7 +394,7 @@ partial class MainForm
 		/// </summary>
 		public string Name { get; }
 
-		public SkyrimLocation Location { get; }
+		public Location Location { get; }
 
 		public string ModelPath { get; }
 	}

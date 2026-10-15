@@ -8,91 +8,10 @@ using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins.Cache;
 using Mutagen.Bethesda.Skyrim;
 using Nursia.SceneGraph;
+using OpenSkyrim.Viewer.Data;
 using OpenSkyrim.Viewer.Utility;
 
 namespace OpenSkyrim.Viewer;
-
-/// <summary>
-/// A single placed object of a location, as shown in the location's object list.
-/// </summary>
-public sealed class SkyrimPlacedObject
-{
-	/// <summary>
-	/// Gets the display name of the object (base record editor id, model path or form key).
-	/// </summary>
-	public string Name { get; init; }
-
-	/// <summary>
-	/// Gets or sets the scene node this object was placed as, or <c>null</c> when it was not
-	/// added to the scene (no model, missing file or beyond the scene's object cap).
-	/// </summary>
-	public SceneNode Node { get; set; }
-
-	private Triangle[] _triangles;
-	private bool _trianglesBuilt;
-
-	/// <summary>
-	/// Gets every triangle of this object's model (in the model node's local space, bone
-	/// transforms applied), built lazily from the model's source geometry. Returns <c>null</c>
-	/// when the object has no pickable geometry.
-	/// </summary>
-	public Triangle[] Triangles
-	{
-		get
-		{
-			if (!_trianglesBuilt)
-			{
-				_trianglesBuilt = true;
-				_triangles = BuildTriangles();
-			}
-
-			return _triangles;
-		}
-	}
-
-	private Triangle[] BuildTriangles()
-	{
-		if (Node is not NursiaModelNode modelNode || modelNode.Model == null)
-		{
-			return null;
-		}
-
-		var modelInstance = modelNode.ModelInstance;
-		var result = new List<Triangle>();
-
-		foreach (var mesh in modelNode.Model.Meshes)
-		{
-			var bone = mesh.ParentBone;
-			if (bone == null)
-			{
-				continue;
-			}
-
-			var boneTransform = modelInstance.GetBoneGlobalTransform(bone.Index);
-
-			foreach (var part in mesh.MeshParts)
-			{
-				var positions = part.SourcePositions;
-				var indices = part.SourceIndices;
-				if (positions == null || indices == null || indices.Length < 3)
-				{
-					continue;
-				}
-
-				var count = indices.Length / 3;
-				for (var i = 0; i < count; ++i)
-				{
-					result.Add(new Triangle(
-						Vector3.Transform(positions[indices[i * 3]], boneTransform),
-						Vector3.Transform(positions[indices[i * 3 + 1]], boneTransform),
-						Vector3.Transform(positions[indices[i * 3 + 2]], boneTransform)));
-				}
-			}
-		}
-
-		return result.Count > 0 ? result.ToArray() : null;
-	}
-}
 
 public sealed class SkyrimSceneBuilder
 {
@@ -106,7 +25,7 @@ public sealed class SkyrimSceneBuilder
 	/// <summary>
 	/// Gets the display entries for every placed object of the last built location.
 	/// </summary>
-	public List<SkyrimPlacedObject> PlacedObjects { get; private set; } = new List<SkyrimPlacedObject>();
+	public List<LocationObject> PlacedObjects { get; private set; } = new List<LocationObject>();
 
 	/// <summary>
 	/// Gets the world transform of where the player appears in the last built location, or
@@ -129,7 +48,7 @@ public sealed class SkyrimSceneBuilder
 	{
 		PlacedObjectCount = 0;
 		LoadedModelCount = 0;
-		PlacedObjects = new List<SkyrimPlacedObject>();
+		PlacedObjects = new List<LocationObject>();
 		PlayerStart = null;
 		PlayerStartSource = null;
 
@@ -205,12 +124,12 @@ public sealed class SkyrimSceneBuilder
 		return (baseRecord.MajorRecordFlagsRaw & MarkerFlag) != 0;
 	}
 
-	private static List<SkyrimPlacedObject> BuildPlacedObjectList(ILinkCache linkCache, IReadOnlyList<IPlacedGetter> placedObjects)
+	private static List<LocationObject> BuildPlacedObjectList(ILinkCache linkCache, IReadOnlyList<IPlacedGetter> placedObjects)
 	{
-		var result = new List<SkyrimPlacedObject>(placedObjects.Count);
+		var result = new List<LocationObject>(placedObjects.Count);
 		foreach (var placed in placedObjects)
 		{
-			result.Add(new SkyrimPlacedObject
+			result.Add(new LocationObject
 			{
 				Name = GetPlacedName(linkCache, placed)
 			});
