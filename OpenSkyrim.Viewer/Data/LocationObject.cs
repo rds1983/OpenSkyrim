@@ -65,9 +65,9 @@ public sealed class LocationObject
 
 			foreach (var part in mesh.MeshParts)
 			{
-				var positions = part.SourcePositions;
+				var vertices = part.SourceVertices;
 				var indices = part.SourceIndices;
-				if (positions == null || indices == null || indices.Length < 3)
+				if (vertices == null || indices == null || indices.Length < 3)
 				{
 					continue;
 				}
@@ -76,9 +76,9 @@ public sealed class LocationObject
 				for (var i = 0; i < count; ++i)
 				{
 					result.Add(new Triangle(
-						Vector3.Transform(positions[indices[i * 3]], boneTransform),
-						Vector3.Transform(positions[indices[i * 3 + 1]], boneTransform),
-						Vector3.Transform(positions[indices[i * 3 + 2]], boneTransform)));
+						Vector3.Transform(vertices[indices[i * 3]].Position, boneTransform),
+						Vector3.Transform(vertices[indices[i * 3 + 1]].Position, boneTransform),
+						Vector3.Transform(vertices[indices[i * 3 + 2]].Position, boneTransform)));
 				}
 			}
 		}

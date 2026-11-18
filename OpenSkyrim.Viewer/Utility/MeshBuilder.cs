@@ -87,11 +87,12 @@ internal class MeshBuilder
 		// Keep a CPU-side copy of the geometry so the viewer can build per-triangle bounding
 		// boxes for accurate picking.
 		var sourcePositions = (from v in Vertices select v.Position).ToArray();
+		var sourceVertices = Vertices.ToArray();
 		var sourceIndices = _indices.ToArray();
 
 		return new DrMeshPart(vertexBuffer, indexBuffer, BoundingBox.CreateFromPoints(sourcePositions))
 		{
-			SourcePositions = sourcePositions,
+			SourceVertices = sourceVertices,
 			SourceIndices = sourceIndices
 		};
 	}
